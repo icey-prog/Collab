@@ -1,0 +1,893 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Collab. Room UI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --cream: #fffdf5;
+      --white: #ffffff;
+      --navy: #364c84;
+      --blue: #95b1ee;
+      --red: #f4a8a8;
+      --chartreuse: #e7f1a8;
+      --mint: #a8f1b8;
+      --amber: #ad7a1d;
+      --ink: #16213f;
+      --muted: rgba(54, 76, 132, .58);
+      --line: rgba(54, 76, 132, .1);
+      --line-soft: rgba(54, 76, 132, .08);
+      --shadow: 0 24px 60px rgba(54, 76, 132, .11);
+      --space-1: 8px;
+      --space-2: 16px;
+      --space-3: 24px;
+      --space-4: 32px;
+      --radius-8: 8px;
+      --radius-12: 12px;
+      --radius-16: 16px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(rgba(54, 76, 132, .045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(54, 76, 132, .045) 1px, transparent 1px),
+        var(--cream);
+      background-size: 8px 8px;
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    .canvas {
+      min-height: 100vh;
+      padding: 32px;
+      position: relative;
+    }
+
+    .room {
+      width: min(1344px, calc(100vw - 64px));
+      min-height: 852px;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      margin: 0 auto;
+      background: var(--cream);
+      border: 1px solid rgba(54, 76, 132, .12);
+      box-shadow: 0 40px 100px rgba(54, 76, 132, .1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      background: var(--white);
+      border-right: 1px solid var(--line);
+      padding: 24px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .logo {
+      color: var(--navy);
+      font-family: "Space Grotesk", Inter, sans-serif;
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .expiry-banner {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 40px;
+      padding: 10px 12px;
+      border-radius: var(--radius-12);
+      background: rgba(244, 232, 168, .4);
+      color: var(--amber);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .room-meta {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .room-code {
+      color: var(--navy);
+      font-family: "DM Mono", monospace;
+      font-size: 20px;
+      font-weight: 500;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      min-height: 28px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      color: var(--navy);
+      background: rgba(231, 241, 168, .35);
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .pill.online {
+      color: #278145;
+      background: rgba(168, 241, 184, .3);
+    }
+
+    .pill.full {
+      color: #994747;
+      background: rgba(244, 168, 168, .35);
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #35b85d;
+      box-shadow: 0 0 0 0 rgba(53, 184, 93, .35);
+      animation: pulseDot 1.8s ease-out infinite;
+      flex: 0 0 auto;
+    }
+
+    .divider {
+      height: 1px;
+      background: var(--line-soft);
+    }
+
+    .nav-section {
+      display: grid;
+      gap: 8px;
+    }
+
+    .eyebrow {
+      margin: 2px 0 4px;
+      color: rgba(54, 76, 132, .45);
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+
+    .nav-item {
+      min-height: 44px;
+      display: grid;
+      grid-template-columns: 28px 1fr auto;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: var(--radius-12);
+      color: rgba(54, 76, 132, .76);
+      font-size: 14px;
+      font-weight: 700;
+      position: relative;
+    }
+
+    .nav-item.active {
+      color: var(--navy);
+      background: rgba(231, 241, 168, .15);
+    }
+
+    .nav-item.active::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 10px;
+      bottom: 10px;
+      width: 2px;
+      border-radius: 2px;
+      background: var(--chartreuse);
+    }
+
+    .nav-icon {
+      font-size: 17px;
+      line-height: 1;
+    }
+
+    .count {
+      min-height: 24px;
+      padding: 5px 8px;
+      border-radius: 999px;
+      background: var(--navy);
+      color: var(--white);
+      font-family: "DM Mono", monospace;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .count.light {
+      background: rgba(54, 76, 132, .08);
+      color: var(--navy);
+    }
+
+    .count.warn {
+      color: var(--amber);
+      background: rgba(244, 232, 168, .42);
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      display: grid;
+      gap: 14px;
+    }
+
+    .close-room {
+      min-height: 42px;
+      border: 1px dashed rgba(244, 168, 168, .9);
+      border-radius: var(--radius-12);
+      background: transparent;
+      color: #d97979;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .close-room:hover {
+      background: rgba(244, 168, 168, .1);
+    }
+
+    .role {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .main {
+      padding: 28px 32px 32px;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 20px;
+      position: relative;
+      animation: fadeSection .5s ease both;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 52px;
+      border-bottom: 1px solid var(--line-soft);
+      padding-bottom: 16px;
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      color: var(--navy);
+      font-family: "Space Grotesk", Inter, sans-serif;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .editing {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .avatars {
+      display: flex;
+    }
+
+    .avatar {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      margin-left: -8px;
+      border: 2px solid var(--cream);
+      border-radius: 50%;
+      color: var(--navy);
+      font-family: "Space Grotesk", Inter, sans-serif;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .avatar:first-child {
+      margin-left: 0;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(520px, 1.25fr) minmax(340px, .85fr);
+      gap: 24px;
+      min-height: 720px;
+    }
+
+    .note-panel {
+      min-height: 100%;
+      display: grid;
+      grid-template-rows: 1fr auto;
+      border-radius: var(--radius-16);
+      background: var(--white);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .editor {
+      position: relative;
+      padding: 28px;
+    }
+
+    .placeholder {
+      min-height: 176px;
+      display: grid;
+      place-items: center;
+      border: 2px dashed rgba(54, 76, 132, .2);
+      border-radius: var(--radius-16);
+      color: rgba(54, 76, 132, .42);
+      font-family: "Space Grotesk", Inter, sans-serif;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .note-lines {
+      display: grid;
+      gap: 18px;
+      margin-top: 34px;
+    }
+
+    .line {
+      height: 13px;
+      border-radius: 999px;
+      background: rgba(54, 76, 132, .075);
+    }
+
+    .line.w1 { width: 78%; }
+    .line.w2 { width: 54%; }
+    .line.w3 { width: 68%; }
+    .line.w4 { width: 38%; }
+
+    .cursor {
+      position: absolute;
+      width: 2px;
+      height: 46px;
+      background: var(--blue);
+    }
+
+    .cursor::after {
+      content: attr(data-user);
+      position: absolute;
+      top: -18px;
+      left: 0;
+      padding: 4px 7px;
+      border-radius: 8px 8px 8px 0;
+      background: var(--blue);
+      color: var(--navy);
+      font-family: "DM Mono", monospace;
+      font-size: 10px;
+      font-weight: 500;
+    }
+
+    .cursor.marie {
+      top: 278px;
+      left: 48%;
+      background: var(--red);
+    }
+
+    .cursor.marie::after {
+      background: var(--red);
+    }
+
+    .cursor.noe {
+      top: 420px;
+      left: 28%;
+      background: var(--chartreuse);
+    }
+
+    .cursor.noe::after {
+      background: var(--chartreuse);
+    }
+
+    .toolbar {
+      min-height: 64px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 18px;
+      border-top: 1px solid var(--line-soft);
+      background: rgba(255, 253, 245, .7);
+    }
+
+    .tool {
+      width: 40px;
+      height: 40px;
+      border: 0;
+      border-radius: var(--radius-8);
+      background: transparent;
+      color: rgba(54, 76, 132, .5);
+      font-family: "Space Grotesk", Inter, sans-serif;
+      font-size: 16px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .tool:hover {
+      background: rgba(231, 241, 168, .32);
+      color: var(--navy);
+    }
+
+    .side-modules {
+      display: grid;
+      gap: 24px;
+      align-content: start;
+    }
+
+    .module-card {
+      border-radius: var(--radius-16);
+      background: rgba(255, 255, 255, .74);
+      border: 1px solid rgba(54, 76, 132, .08);
+      box-shadow: 0 18px 45px rgba(54, 76, 132, .08);
+      padding: 18px;
+      animation: fadeSection .7s ease both;
+    }
+
+    .module-card h2 {
+      margin-bottom: 14px;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .drop-zone {
+      min-height: 152px;
+      display: grid;
+      place-items: center;
+      gap: 8px;
+      padding: 22px;
+      border: 2px dashed rgba(54, 76, 132, .25);
+      border-radius: var(--radius-16);
+      text-align: center;
+    }
+
+    .upload-icon {
+      color: rgba(54, 76, 132, .4);
+    }
+
+    .drop-title {
+      color: var(--navy);
+      font-family: "Space Grotesk", Inter, sans-serif;
+      font-weight: 700;
+    }
+
+    .sub {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .file-list,
+    .qa-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .file-row,
+    .question-row {
+      display: grid;
+      align-items: center;
+      gap: 10px;
+      padding: 12px;
+      border-radius: var(--radius-12);
+      background: var(--white);
+      border: 1px solid rgba(54, 76, 132, .08);
+    }
+
+    .file-row {
+      grid-template-columns: 34px 1fr auto auto;
+    }
+
+    .file-icon {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: var(--radius-8);
+      background: rgba(149, 177, 238, .28);
+      color: var(--navy);
+      font-size: 16px;
+    }
+
+    .file-name,
+    .question-text {
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .file-meta,
+    .timestamp {
+      color: var(--muted);
+      font-family: "DM Mono", monospace;
+      font-size: 11px;
+    }
+
+    .icon-btn {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border: 0;
+      border-radius: var(--radius-8);
+      background: rgba(54, 76, 132, .06);
+      color: var(--navy);
+      cursor: pointer;
+    }
+
+    .icon-btn.delete {
+      background: transparent;
+      color: #c86767;
+    }
+
+    .icon-btn.delete:hover {
+      background: rgba(244, 168, 168, .2);
+    }
+
+    .question-input {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      padding: 10px;
+      border: 2px dashed rgba(54, 76, 132, .2);
+      border-radius: var(--radius-16);
+      background: var(--white);
+    }
+
+    .question-input input {
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      color: var(--navy);
+      background: transparent;
+      padding: 0 8px;
+    }
+
+    .send {
+      min-height: 38px;
+      padding: 0 15px;
+      border: 0;
+      border-radius: var(--radius-12);
+      background: var(--chartreuse);
+      color: var(--navy);
+      font-weight: 800;
+    }
+
+    .question-row {
+      grid-template-columns: 48px 34px 1fr auto;
+    }
+
+    .score {
+      color: var(--navy);
+      font-family: "Space Grotesk", Inter, sans-serif;
+      font-size: 24px;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .vote {
+      width: 34px;
+      height: 34px;
+      border: 0;
+      border-radius: var(--radius-8);
+      background: rgba(231, 241, 168, .25);
+      color: var(--navy);
+      font-weight: 800;
+    }
+
+    .vote.pressed {
+      background: var(--chartreuse);
+    }
+
+    .error-screen {
+      position: absolute;
+      right: 32px;
+      bottom: 112px;
+      width: 300px;
+      padding: 18px;
+      border: 1px solid rgba(244, 168, 168, .55);
+      border-radius: var(--radius-16);
+      background: var(--white);
+      box-shadow: var(--shadow);
+    }
+
+    .error-screen h3 {
+      font-size: 16px;
+      margin-bottom: 8px;
+    }
+
+    .error-screen p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .toast {
+      position: absolute;
+      right: 32px;
+      bottom: 32px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 52px;
+      padding: 14px 16px;
+      border-radius: var(--radius-12);
+      background: var(--white);
+      color: var(--navy);
+      box-shadow: var(--shadow);
+      font-size: 13px;
+      font-weight: 800;
+      animation: slideInToast .55s cubic-bezier(.2, .9, .2, 1) both;
+    }
+
+    .annotation {
+      position: absolute;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: rgba(54, 76, 132, .72);
+      font-family: "DM Mono", monospace;
+      font-size: 10px;
+      line-height: 1.3;
+      pointer-events: none;
+    }
+
+    .annotation::before {
+      content: "";
+      width: 34px;
+      height: 1px;
+      background: rgba(54, 76, 132, .35);
+    }
+
+    .annotation.top::before {
+      width: 1px;
+      height: 34px;
+    }
+
+    .a-sidebar { left: 18px; top: 118px; }
+    .a-main { right: 36px; top: 92px; }
+    .a-accent { left: 328px; top: 176px; }
+    .a-dashed-editor { left: 440px; top: 250px; }
+    .a-dashed-upload { right: 284px; top: 312px; }
+    .a-dashed-question { right: 234px; top: 560px; }
+    .a-radius { left: 574px; bottom: 54px; }
+    .a-motion { right: 64px; bottom: 18px; }
+    .a-grid { left: 40px; bottom: 20px; }
+
+    @keyframes pulseDot {
+      70% {
+        box-shadow: 0 0 0 10px rgba(53, 184, 93, 0);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(53, 184, 93, 0);
+      }
+    }
+
+    @keyframes fadeSection {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes slideInToast {
+      from {
+        opacity: 0;
+        transform: translateX(28px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    @media (max-width: 1100px) {
+      .canvas {
+        padding: 16px;
+      }
+
+      .room {
+        width: calc(100vw - 32px);
+        grid-template-columns: 240px 1fr;
+      }
+
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .annotation,
+      .error-screen {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="canvas">
+    <section class="room" aria-label="Interface Room Collab">
+      <aside class="sidebar">
+        <div class="logo">Collab.</div>
+        <div class="expiry-banner">⚠ Room expire dans 28min</div>
+        <div class="room-meta">
+          <div class="room-code">X7K92P</div>
+          <div class="pill online"><span class="dot"></span>3 en ligne</div>
+        </div>
+        <div class="divider"></div>
+
+        <nav class="nav-section" aria-label="Workspace">
+          <div class="eyebrow">Workspace</div>
+          <div class="nav-item active"><span class="nav-icon">📝</span><span>Bloc-notes</span></div>
+          <div class="nav-item"><span class="nav-icon">📂</span><span>Fichiers partagés</span><span class="count">3</span></div>
+          <div class="nav-item"><span class="nav-icon">🗳️</span><span>Q&amp;A</span><span class="count light">5 questions</span></div>
+        </nav>
+
+        <nav class="nav-section" aria-label="Room">
+          <div class="eyebrow">Room</div>
+          <div class="nav-item"><span class="nav-icon">👥</span><span>Participants</span><span class="pill full">50 / 50</span></div>
+          <div class="nav-item"><span class="nav-icon">⏱️</span><span>Expire dans</span><span class="count warn">28m</span></div>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div class="divider"></div>
+          <button class="close-room" type="button">Clore la room</button>
+          <div class="role"><span>Rôle</span><span class="pill">Admin</span></div>
+        </div>
+      </aside>
+
+      <section class="main">
+        <header class="topbar">
+          <h1>Bloc-notes</h1>
+          <div class="editing">
+            <span>3 personnes éditent</span>
+            <div class="avatars" aria-label="Éditeurs actifs">
+              <span class="avatar" style="background: var(--blue)">A</span>
+              <span class="avatar" style="background: var(--red)">M</span>
+              <span class="avatar" style="background: var(--chartreuse)">N</span>
+            </div>
+          </div>
+        </header>
+
+        <div class="workspace">
+          <article class="note-panel">
+            <div class="editor">
+              <div class="placeholder">Commencez à écrire — synchronisation temps réel</div>
+              <div class="note-lines" aria-hidden="true">
+                <span class="line w1"></span>
+                <span class="line w2"></span>
+                <span class="line w3"></span>
+                <span class="line w4"></span>
+              </div>
+              <span class="cursor" style="top: 212px; left: 62%;" data-user="A"></span>
+              <span class="cursor marie" data-user="M"></span>
+              <span class="cursor noe" data-user="N"></span>
+            </div>
+            <div class="toolbar" aria-label="Toolbar éditeur">
+              <button class="tool" type="button" title="Bold">B</button>
+              <button class="tool" type="button" title="Italic"><em>I</em></button>
+              <button class="tool" type="button" title="Code">&lt;/&gt;</button>
+              <button class="tool" type="button" title="Titre">T</button>
+            </div>
+          </article>
+
+          <div class="side-modules">
+            <article class="module-card" aria-label="Module fichiers">
+              <h2>Fichiers partagés</h2>
+              <div class="drop-zone">
+                <svg class="upload-icon" width="34" height="34" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M16 16l-4-4-4 4M12 12v9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M20.4 18.4A5 5 0 0018 9h-1.3A7 7 0 103 15.6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+                <div>
+                  <div class="drop-title">Glissez vos fichiers ici</div>
+                  <div class="sub">10 Mo max · Expiration 24h</div>
+                </div>
+              </div>
+              <div class="file-list">
+                <div class="file-row">
+                  <div class="file-icon">PDF</div>
+                  <div>
+                    <div class="file-name">brief-room.pdf</div>
+                    <div class="file-meta">2.4 Mo · expire dans 18h</div>
+                  </div>
+                  <button class="icon-btn" title="Télécharger" type="button">↓</button>
+                  <button class="icon-btn delete" title="Supprimer" type="button">×</button>
+                </div>
+                <div class="file-row">
+                  <div class="file-icon">PNG</div>
+                  <div>
+                    <div class="file-name">wireframe.png</div>
+                    <div class="file-meta">812 Ko · expire dans 21h</div>
+                  </div>
+                  <button class="icon-btn" title="Télécharger" type="button">↓</button>
+                  <button class="icon-btn delete" title="Supprimer" type="button">×</button>
+                </div>
+              </div>
+            </article>
+
+            <article class="module-card" aria-label="Module questions réponses">
+              <h2>Q&amp;A</h2>
+              <div class="question-input">
+                <input aria-label="Nouvelle question" placeholder="Posez votre question...">
+                <button class="send" type="button">Envoyer</button>
+              </div>
+              <div class="qa-list">
+                <div class="question-row">
+                  <div class="score">12</div>
+                  <button class="vote pressed" type="button">▲</button>
+                  <div>
+                    <div class="question-text">Peut-on exporter le bloc-notes après la room ?</div>
+                    <div class="timestamp">14:08</div>
+                  </div>
+                  <button class="icon-btn delete" title="Supprimer" type="button">×</button>
+                </div>
+                <div class="question-row">
+                  <div class="score">7</div>
+                  <button class="vote" type="button">▲</button>
+                  <div>
+                    <div class="question-text">Les fichiers restent-ils accessibles côté admin ?</div>
+                    <div class="timestamp">14:05</div>
+                  </div>
+                  <button class="icon-btn delete" title="Supprimer" type="button">×</button>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <aside class="error-screen" aria-label="Erreur room pleine">
+          <h3>Room pleine</h3>
+          <p>Cette room a atteint 50 participants. Les nouveaux visiteurs voient cet état minimaliste.</p>
+        </aside>
+
+        <div class="toast"><span class="dot"></span>Marie a rejoint la room</div>
+      </section>
+
+      <div class="annotation a-sidebar">60% blanc : navigation stable</div>
+      <div class="annotation a-main">30% crème : surface de travail</div>
+      <div class="annotation a-accent">10% accent : chartreuse, bleu, rouge</div>
+      <div class="annotation a-dashed-editor">dashed = état interactif vide</div>
+      <div class="annotation a-dashed-upload">dashed = état interactif vide</div>
+      <div class="annotation a-dashed-question">dashed = état interactif vide</div>
+      <div class="annotation a-radius">rayons : 8 boutons · 12 pills/cards · 16 panneaux</div>
+      <div class="annotation a-motion">animations : slide-in toast · pulse dot · fade section</div>
+      <div class="annotation a-grid top">grid 8px visible en fond</div>
+    </section>
+  </main>
+</body>
+</html>

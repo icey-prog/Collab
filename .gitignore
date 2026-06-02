@@ -1,0 +1,54 @@
+# ─── Dependencies ─────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ─── Builds / outputs ─────────────────────
+build/
+dist/
+.svelte-kit/
+.output/
+
+# ─── Env ──────────────────────────────────
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ─── Logs ─────────────────────────────────
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ─── Editors / OS ─────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# ─── Design bundle archives (regenerable) ──
+design_bundle/
+design_bundle_v2/
+.playwright-mcp/
+*.bin
+
+# ─── Local screenshots (audits) ───────────
+audit_*.png
+check_*.png
+v2_*.png
+landing_preview.png
+claude_*.png
+pin_*.png
+
+# ─── Docker / runtime ─────────────────────
+redis_data/
+uploads_local/
+
+# ─── Misc ─────────────────────────────────
+*.tsbuildinfo
+coverage/
+.cache/
