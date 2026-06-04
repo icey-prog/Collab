@@ -491,71 +491,100 @@ Cette phase fait le **MVP utilisable** : 3 modes opérationnels, déployable, pr
 
 ## 9. Mode LAN — Expérience non-dev
 
-**Objectif** : un prof, un chef de projet BTP, un community manager doit pouvoir lancer une session Collab LAN en **moins de 30 secondes** sans rien comprendre à Docker.
+**Objectif** : un prof, un chef de projet BTP, un community manager lance une session Collab LAN en **moins de 30 secondes**. Zéro jargon, zéro config réseau, zéro Docker visible.
 
-### 9.1 Distribution sous forme d'installeur
+### 9.1 Clarification : Wi-Fi ≠ Internet
 
-Trois formats prévus :
+| Réalité | Conséquence pour Collab LAN |
+|---|---|
+| Routeur allumé + FAI coupé | Wi-Fi OK → Collab LAN marche |
+| Pas de routeur du tout | Un téléphone active son partage de connexion → crée un Wi-Fi local → tout le monde s'y connecte |
+| Pas même un téléphone | Câble Ethernet RJ45 entre 2 PC (cas extrême, rare) |
+| Wi-Fi public ouvert | Risque sécurité → utiliser hotspot téléphone à la place |
 
-| Plateforme | Format | Comment ça marche |
-|---|---|---|
-| **Windows** | `Collab-LAN-Setup.exe` | Double-clic → installe Docker Desktop si absent → installe Collab → ouvre menu démarrer |
-| **macOS** | `Collab-LAN.dmg` | Drag-and-drop dans Applications → premier lancement installe Docker si absent |
-| **Linux** | `collab-lan.deb` ou `.AppImage` | Apt install ou exécution directe |
+Le mode LAN **suppose un réseau local commun**, pas Internet. La distinction est essentielle.
 
-**Sous le capot** : ces packages sont des wrappers Tauri (Rust) qui :
-1. Embarquent les fichiers `docker-compose.lan.yml` + images Docker pré-tirées
-2. Détectent si Docker est installé, sinon télécharge l'installeur officiel
-3. Lancent `docker compose up -d` en arrière-plan
-4. Affichent une fenêtre avec l'URL à partager + QR code
+### 9.2 Modèle host/client (v1) — pourquoi pas tous host
 
-### 9.2 Interface "Collab Host" (app desktop)
+**v1 retenue** : 1 device = host (lance le backend Docker), les autres = clients (browser uniquement).
 
-Au lancement, fenêtre simple :
+| Modèle | Pour | Contre | Choix |
+|---|---|---|---|
+| 1 host + N clients (notre v1) | Setup trivial, scale jusqu'à 50 clients, Y.js sur chaque client = backup local | Si host crash, session interrompue (mais Y.js IndexedDB sauvegarde) | ✅ v1 |
+| Mesh P2P (tous host+client via WebRTC) | Pas de point unique de panne, vraie P2P | Signaling WebRTC complexe sans Internet, scaling N² au-delà de 10 peers | v2 (Phase 5) |
+| Élection de host dynamique | Robuste à la perte du host | Réimplémenter consensus (Raft simplifié) | v3 |
+
+**Pourquoi v1 suffit** : grâce à `y-indexeddb`, chaque client garde une copie complète du Y.Doc. Si le host meurt, une autre personne peut relancer Collab Host, donner sa nouvelle URL, tout le monde se reconnecte, Y.js merge les états. Pas de perte de données.
+
+### 9.3 UX au lancement de l'app — 2 boutons
+
+Au lancement de **Collab Host** :
 
 ```
 ┌──────────────────────────────────────────────┐
-│  Collab Host · Session LAN active            │
+│              Collab                          │
 │                                                │
-│  ┌────────────────────────────────────────┐  │
-│  │                                          │  │
-│  │      ▢▢▢▢▢▢▢▢▢▢▢▢▢▢                   │  │
-│  │      ▢ QR CODE ▢                        │  │
-│  │      ▢▢▢▢▢▢▢▢▢▢▢▢▢▢                   │  │
-│  │                                          │  │
-│  │  Tes collègues scannent ce QR code      │  │
-│  │  ou tapent cette adresse :               │  │
-│  │                                          │  │
-│  │  http://192.168.1.42:5173               │  │
-│  │  [📋 Copier]                             │  │
-│  │                                          │  │
-│  │  Participants connectés : 3              │  │
-│  │  Rooms actives : 1                       │  │
-│  │                                          │  │
-│  │  [Arrêter Collab]                        │  │
-│  └────────────────────────────────────────┘  │
+│   ╔══════════════════════════════════════╗   │
+│   ║                                        ║   │
+│   ║          📡  HÉBERGER                 ║   │
+│   ║      Tu démarres la session            ║   │
+│   ║                                        ║   │
+│   ╚══════════════════════════════════════╝   │
+│                                                │
+│   ╔══════════════════════════════════════╗   │
+│   ║                                        ║   │
+│   ║          🔗  REJOINDRE                ║   │
+│   ║   Tu rejoins une session existante     ║   │
+│   ║                                        ║   │
+│   ╚══════════════════════════════════════╝   │
+│                                                │
 └──────────────────────────────────────────────┘
 ```
 
-Trois actions max. Zéro jargon technique.
+**Si "Héberger"** → écran avec QR + URL + code 6 chars :
 
-### 9.3 Côté participant (PC ou téléphone)
+```
+┌──────────────────────────────────────────────┐
+│  Session active · 2 participants             │
+│                                                │
+│      ▢▢▢▢▢▢▢▢▢▢▢                            │
+│      ▢ [QR CODE]                             │
+│      ▢▢▢▢▢▢▢▢▢▢▢                            │
+│                                                │
+│  Code : X7K92P                                 │
+│  ou : http://192.168.1.42:5173/X7K92P         │
+│                                                │
+│  [📋 Copier]    [Arrêter]                      │
+└──────────────────────────────────────────────┘
+```
 
-1. Ouvre le QR scanner du téléphone OU tape l'URL dans le browser
-2. Tombe sur la landing Collab familière
-3. Crée une room ou rejoint avec un code
-4. Bosse normalement
+**Si "Rejoindre"** → input code OU bouton "Scanner QR" → ouvre la room directement.
 
-**Aucune installation côté participant.** Seul le host installe l'app.
+### 9.4 Le host installe, les clients n'installent rien
 
-### 9.4 Documentation utilisateur (GUIDE-UTILISATEUR-LAN.md)
+| Rôle | Installation requise |
+|---|---|
+| **Host** (1 personne) | Collab Host (~50 Mo, embarque Docker via Tauri) |
+| **Clients** (tous les autres) | Aucune. Juste un navigateur (Chrome, Firefox, Safari) |
 
-Doc en 5 étapes avec captures d'écran :
-1. Télécharger Collab Host (lien selon OS)
-2. Double-cliquer pour installer
-3. Lancer Collab Host
-4. Montrer le QR code aux collègues
-5. C'est tout
+Côté client = même Collab que la version web. Aucune friction.
+
+### 9.5 Sous le capot (Tauri wrap)
+
+L'app Collab Host est un wrapper **Tauri** (Rust) qui :
+1. Embarque les images Docker pré-tirées dans le `.exe`/`.dmg`/`.AppImage`
+2. Détecte si Docker est installé, sinon télécharge l'installeur officiel et le lance
+3. Lance `docker compose up -d` en arrière-plan (invisible pour l'user)
+4. Affiche la fenêtre simple ci-dessus
+5. Au "Arrêter" → `docker compose down` + cleanup
+
+Taille finale ~50 Mo (Tauri = WebView native + Rust binaire). Comparé à Electron (~150 Mo), 3× plus léger.
+
+### 9.6 Cas où plusieurs personnes lancent Collab Host par erreur
+
+Pas de problème : chacun crée sa session indépendante. Si un client a deux URLs sous les yeux, il choisit celle qu'il veut rejoindre. Pas de conflit, pas de corruption.
+
+Future amélioration v2 : Collab Host pourrait **se découvrir mutuellement via mDNS** et proposer "tu veux rejoindre la session de X plutôt que d'en créer une nouvelle ?". Reporté à Phase 5.
 
 ---
 
