@@ -65,7 +65,7 @@
 
   function closeRoom() {
     if (!confirm('Clore définitivement cette room ?')) return;
-    fetch(`/room/${roomId}`, { method: 'DELETE', credentials: 'include' })
+    fetch(`/api/room/${roomId}`, { method: 'DELETE', credentials: 'include' })
       .then((r) => {
         if (r.ok) { pushToast('Room close', 'success'); goto('/'); }
         else pushToast('Échec de la fermeture', 'info', 4000);

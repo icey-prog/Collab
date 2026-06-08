@@ -32,7 +32,7 @@
     const fd = new FormData();
     fd.append('file', file);
     try {
-      const res = await fetch(`/room/${roomId}/upload`, {
+      const res = await fetch(`/api/room/${roomId}/upload`, {
         method: 'POST', body: fd, credentials: 'include'
       });
       if (!res.ok) {

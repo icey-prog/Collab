@@ -13,7 +13,7 @@ export interface ApiError {
 }
 
 export async function createRoom(): Promise<CreateRoomResponse> {
-  const res = await fetch('/room/create', {
+  const res = await fetch('/api/room/create', {
     method: 'POST',
     credentials: 'include',     // admin cookie httpOnly
     headers: { 'Content-Type': 'application/json' }
@@ -46,7 +46,7 @@ export interface RoomPreview {
  * Returns 404 if expired / inexistant.
  */
 export async function getRoomPreview(roomId: string): Promise<RoomPreview> {
-  const res = await fetch(`/room/${roomId}`, { credentials: 'include' });
+  const res = await fetch(`/api/room/${roomId}/preview`, { credentials: 'include' });
   if (res.status === 404) return { exists: false, participants: 0, expiresInSec: 0, full: false };
   if (!res.ok) throw new Error(`Erreur ${res.status}`);
   return res.json();
