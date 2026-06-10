@@ -54,51 +54,73 @@
   onDestroy(() => yText.unobserve(onYChange));
 </script>
 
-<div class="editor card">
-  <h3 class="doc-title">Bloc-notes — Sprint en cours</h3>
+<div class="editor">
+  <!-- Toolbar haut style IDE -->
+  <div class="editor-toolbar">
+    <button class="tool-btn" title="Gras (Ctrl+B)"><b>B</b></button>
+    <button class="tool-btn" title="Italique (Ctrl+I)" style="font-style:italic;">I</button>
+    <button class="tool-btn" title="Code (Ctrl+E)" style="font-family:var(--font-mono);font-size:12px;">&lt;/&gt;</button>
+    <button class="tool-btn" title="Titre">H</button>
+    <span class="tb-sep"></span>
+    <span class="tb-meta">Markdown</span>
+  </div>
+
   <textarea
     bind:this={textarea}
     {value}
     on:input={onInput}
-    placeholder="Commencez à écrire — synchronisation temps réel via Y.js"
+    placeholder="Commencez à écrire — synchronisation temps réel via Y.js entre tous les participants connectés."
     spellcheck="false"
   ></textarea>
-
-  <div class="editor-toolbar">
-    <button class="tool-btn" title="Gras"><b>B</b></button>
-    <button class="tool-btn" title="Italique" style="font-style:italic;">I</button>
-    <button class="tool-btn" title="Code" style="font-family:var(--font-mono);font-size:12px;">&lt;/&gt;</button>
-    <button class="tool-btn" title="Titre">H</button>
-  </div>
 </div>
 
 <style>
   .editor {
-    flex: 1; padding: 36px 40px;
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--navy-10);
+    border-radius: var(--r-md);
     display: flex; flex-direction: column; min-height: 0;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
   }
-  .doc-title {
-    font-family: var(--font-head); font-weight: 700; font-size: 22px;
-    color: var(--navy); margin: 0 0 18px;
+
+  .editor-toolbar {
+    display: flex; align-items: center; gap: 2px;
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--navy-08);
+    background: var(--surface-dim);
+    flex-shrink: 0;
   }
+  .tool-btn {
+    width: 32px; height: 32px; border-radius: 6px;
+    border: none; background: transparent; color: var(--navy-55);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-head); font-weight: 700; font-size: 13px;
+    transition: background .15s ease, color .15s ease;
+  }
+  .tool-btn:hover { background: var(--navy-08); color: var(--navy); }
+  .tool-btn:active { background: var(--navy-12); }
+  .tb-sep {
+    width: 1px; height: 18px; background: var(--navy-12);
+    margin: 0 6px;
+  }
+  .tb-meta {
+    font-family: var(--font-mono); font-size: 11px;
+    color: var(--navy-50);
+    margin-left: auto;
+    letter-spacing: 0.05em;
+  }
+
   textarea {
     flex: 1; min-height: 200px;
+    padding: 28px 32px;
     background: transparent; border: none; outline: none; resize: none;
     font-family: var(--font-body); font-size: 15px; line-height: 1.75;
     color: var(--navy);
   }
-  textarea::placeholder { color: var(--navy-30); }
-
-  .editor-toolbar {
-    display: flex; gap: 4px;
-    margin-top: 18px; padding-top: 16px;
-    border-top: 1px solid var(--navy-08);
+  textarea::placeholder {
+    color: var(--navy-50);   /* lisible des 2 côtés clair/sombre */
+    font-style: italic;
   }
-  .tool-btn {
-    width: 40px; height: 40px; border-radius: var(--r-sm);
-    border: none; background: transparent; color: var(--navy-50);
-    cursor: pointer; display: flex; align-items: center; justify-content: center;
-    font-family: var(--font-head); font-weight: 700; font-size: 14px;
-  }
-  .tool-btn:hover { background: var(--navy-06); color: var(--navy); }
 </style>

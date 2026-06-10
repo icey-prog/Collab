@@ -7,8 +7,9 @@
 
 :root {
   /* ---- 60-30-10 ---- */
-  --paper:      #FFFDF5;   /* 60% warm off-white */
-  --surface:    #FFFFFF;   /* cards */
+  --paper:      #FFFDF5;   /* 60% warm off-white (sidebar) */
+  --surface:    #FFFFFF;   /* cards / panneaux flottants */
+  --surface-dim: #F8F4EA;  /* IDE main content area — entre paper et surface */
   --surface-cream-strong: #F0EBDD;  /* tab cursor / pill active — Claude pattern */
   --navy:       #364C84;   /* 30% deep navy */
   --chartreuse: #E7F1A8;   /* 10% accent — seul highlight */
@@ -414,6 +415,7 @@ body.theme-dark .theme-ctl .lbl-dark { display: inline; }
 body.theme-dark {
   --paper:   #141A2B;
   --surface: #1C2336;
+  --surface-dim: #181F31;
   --surface-cream-strong: rgba(231,234,243,0.10);
   --navy:    #E7EAF3;
   --navy-90: rgba(231,234,243,0.92);
@@ -453,6 +455,7 @@ body.theme-dark .spec-bar { background: rgba(20,26,43,0.82); }
 body.theme-b {
   --paper:   #F4F1F8;   /* 60% lavande-ivoire */
   --surface: #FFFFFF;
+  --surface-dim: #EEEAF3;
   --surface-cream-strong: #E8DFF0;  /* lavande-strong tab cursor */
   --navy:    #312744;   /* 30% améthyste profond (texte/structure) */
   --navy-90: rgba(49,39,68,0.92);
@@ -480,6 +483,7 @@ body.theme-b .pill-info  { background: rgba(117,173,201,0.22); color: #3E7794; }
 body.theme-b.theme-dark {
   --paper:   #181221;
   --surface: #241B33;
+  --surface-dim: #1E1729;
   --surface-cream-strong: rgba(236,230,246,0.10);
   --navy:    #ECE6F6;
   --navy-90: rgba(236,230,246,0.92);
@@ -510,6 +514,7 @@ body.theme-b.theme-dark .spec-bar { background: rgba(24,18,33,0.82); }
 body.theme-c {
   --paper:   #F5E9E2;   /* 60% Linen */
   --surface: #FFFFFF;
+  --surface-dim: #EFE0D7;
   --surface-cream-strong: #ECDAD0;  /* Almond Silk tab cursor */
   --navy:    #1B0421;   /* 30% Midnight Violet (texte/structure) */
   --navy-90: rgba(27,4,33,0.92);
@@ -535,6 +540,7 @@ body.theme-c .pill-info { background: rgba(227,181,164,0.34); color: #9A5B45; } 
 body.theme-c.theme-dark {
   --paper:   #160021;
   --surface: #270A2C;
+  --surface-dim: #1D0526;
   --surface-cream-strong: rgba(245,233,226,0.10);
   --navy:    #F5E9E2;
   --navy-90: rgba(245,233,226,0.92);
@@ -565,6 +571,7 @@ body.theme-c.theme-dark .spec-bar { background: rgba(22,0,33,0.82); }
 body.theme-d {
   --paper:   #D9E1DD;   /* 60% Thin Cloud */
   --surface: #F2F6F4;
+  --surface-dim: #CFD8D3;
   --surface-cream-strong: #C5D0CB;  /* sage-strong tab cursor */
   --navy:    #0F1618;   /* 30% Black is Back (texte/structure) */
   --navy-90: rgba(15,22,24,0.92);
@@ -591,6 +598,7 @@ body.theme-d .pill-info { background: rgba(171,185,182,0.40); color: #4C5856; } 
 body.theme-d.theme-dark {
   --paper:   #0F1618;   /* Black is Back */
   --surface: #1A2421;   /* Dracula Orchid deepened */
+  --surface-dim: #131C1E;
   --surface-cream-strong: rgba(211,222,218,0.10);
   --navy:    #D3DEDA;   /* Thin Cloud */
   --navy-90: rgba(211,222,218,0.92);

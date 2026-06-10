@@ -198,31 +198,30 @@
   .rail-toggle :global(svg) { transition: transform .3s cubic-bezier(.4,0,.2,1); }
   .sidebar.collapsed .rail-toggle :global(svg) { transform: rotate(180deg); }
 
-  /* — rail — */
+  /* — rail unifié avec panel (pas de border entre) — */
   .rail {
-    width: 64px; flex-shrink: 0; height: 100%;
-    background: color-mix(in srgb, var(--paper) 92%, var(--navy) 4%);
-    border-right: 1px solid var(--navy-08);
+    width: 56px; flex-shrink: 0; height: 100%;
+    background: var(--paper);
     display: flex; flex-direction: column; align-items: center;
-    padding: 18px 0 16px; gap: 4px;
+    padding: 14px 0 12px; gap: 2px;
   }
   .rlogo {
-    width: 38px; height: 38px; border-radius: 11px; background: var(--brand);
+    width: 34px; height: 34px; border-radius: 9px; background: var(--brand);
     display: flex; align-items: center; justify-content: center;
-    font-family: var(--font-head); font-weight: 700; font-size: 18px; color: #fff;
-    margin-bottom: 8px; position: relative; text-decoration: none;
+    font-family: var(--font-head); font-weight: 700; font-size: 15px; color: var(--paper);
+    margin-bottom: 10px; position: relative; text-decoration: none;
   }
   .rlogo::after {
     content: ""; position: absolute; right: 6px; bottom: 6px;
     width: 5px; height: 5px; border-radius: 50%; background: var(--chartreuse);
   }
   .ri {
-    width: 42px; height: 42px; border-radius: var(--r-md);
+    width: 38px; height: 38px; border-radius: 8px;
     display: flex; align-items: center; justify-content: center;
     color: var(--navy-50); cursor: pointer; border: none; background: transparent;
     transition: background .18s ease, color .18s ease;
   }
-  .ri svg { width: 19px; height: 19px; }
+  .ri svg { width: 17px; height: 17px; }
   .ri:hover { background: var(--navy-04); color: var(--navy); }
   .ri.on {
     background: var(--surface-cream-strong);
@@ -238,16 +237,18 @@
     color: var(--navy); cursor: pointer;
   }
 
-  /* — panel — */
+  /* — panel unifié avec rail (même bg) — */
   .panel {
-    width: 256px; flex-shrink: 0; height: 100%;
-    background: var(--surface);
+    width: 244px; flex-shrink: 0; height: 100%;
+    background: var(--paper);
     display: flex; flex-direction: column; overflow: hidden;
     transition: width .3s cubic-bezier(.4,0,.2,1), opacity .22s ease;
   }
   .panel-head {
-    padding: 20px 18px 14px;
+    padding: 16px 16px 12px;
     display: flex; align-items: center; justify-content: space-between;
+    border-bottom: 1px solid var(--navy-08);
+    margin-bottom: 8px;
   }
   .sb-brand {
     font-family: var(--font-head); font-weight: 700; font-size: 19px;
@@ -265,9 +266,9 @@
 
   /* room utility card */
   .room-util {
-    margin: 0 14px 6px; padding: 13px 14px;
-    background: var(--paper); border: 1px solid var(--navy-10);
-    border-radius: var(--r-md);
+    margin: 6px 12px 8px; padding: 12px 13px;
+    background: var(--surface); border: 1px solid var(--navy-10);
+    border-radius: 10px;
   }
   .ru-top { display: flex; align-items: center; justify-content: space-between; }
   .ru-label {
@@ -339,7 +340,7 @@
     font-size: 13.5px; font-weight: 600; color: var(--navy);
     display: flex; align-items: center; gap: 7px;
   }
-  .prole { font-size: 11px; color: var(--navy-50); margin-top: 1px; }
+  .prole { font-size: 11px; color: var(--navy-60); margin-top: 1px; }
   .role-chip {
     font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
     padding: 1px 7px; border-radius: var(--r-pill);
