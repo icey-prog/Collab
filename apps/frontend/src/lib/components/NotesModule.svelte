@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { isOnline } from '$lib/stores/network';
   import type * as Y from 'yjs';
 
   export let yText: Y.Text;
@@ -54,27 +55,100 @@
   onDestroy(() => yText.unobserve(onYChange));
 </script>
 
-<div class="editor">
-  <!-- Toolbar haut style IDE -->
-  <div class="editor-toolbar">
-    <button class="tool-btn" title="Gras (Ctrl+B)"><b>B</b></button>
-    <button class="tool-btn" title="Italique (Ctrl+I)" style="font-style:italic;">I</button>
-    <button class="tool-btn" title="Code (Ctrl+E)" style="font-family:var(--font-mono);font-size:12px;">&lt;/&gt;</button>
-    <button class="tool-btn" title="Titre">H</button>
-    <span class="tb-sep"></span>
-    <span class="tb-meta">Markdown</span>
+<div class="notes-zone">
+
+  <!-- Zone header — titre + meta -->
+  <div class="zone-header">
+    <div class="zone-title-row">
+      <span class="zone-ico">
+        <svg viewBox="0 0 18 18" fill="none">
+          <path d="M4 2.5h7L14.5 6v9.5H4z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+          <path d="M10.5 2.5V6h4M6.5 9.5h5M6.5 12h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <h2 class="zone-title">Bloc-notes</h2>
+      {#if $isOnline}
+        <span class="zone-tag">CRDT · temps réel</span>
+      {:else}
+        <span class="zone-tag offline">✎ Hors-ligne · sauvegardé localement</span>
+      {/if}
+    </div>
+    <p class="zone-desc">Édition collaborative en temps réel via Y.js — toutes les modifications sont synchronisées instantanément entre participants.</p>
   </div>
 
-  <textarea
-    bind:this={textarea}
-    {value}
-    on:input={onInput}
-    placeholder="Commencez à écrire — synchronisation temps réel via Y.js entre tous les participants connectés."
-    spellcheck="false"
-  ></textarea>
+  <!-- Éditeur -->
+  <div class="editor">
+    <!-- Toolbar haut style IDE -->
+    <div class="editor-toolbar">
+      <button class="tool-btn" title="Gras (Ctrl+B)"><b>B</b></button>
+      <button class="tool-btn" title="Italique (Ctrl+I)" style="font-style:italic;">I</button>
+      <button class="tool-btn" title="Code (Ctrl+E)" style="font-family:var(--font-mono);font-size:12px;">&lt;/&gt;</button>
+      <button class="tool-btn" title="Titre">H</button>
+      <span class="tb-sep"></span>
+      <span class="tb-meta">Markdown</span>
+    </div>
+
+    <textarea
+      bind:this={textarea}
+      {value}
+      on:input={onInput}
+      placeholder="Commencez à écrire — synchronisation temps réel via Y.js entre tous les participants connectés."
+      spellcheck="false"
+    ></textarea>
+  </div>
+
 </div>
 
 <style>
+  .notes-zone {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* ── Zone header ── */
+  .zone-header {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .zone-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .zone-ico {
+    width: 22px; height: 22px;
+    display: inline-flex;
+    color: var(--navy-60);
+    flex-shrink: 0;
+  }
+  .zone-ico svg { width: 100%; height: 100%; }
+  .zone-title {
+    font-family: var(--font-head); font-weight: 700;
+    font-size: 17px; color: var(--navy); margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .zone-tag {
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--navy-50); background: var(--navy-06);
+    padding: 3px 8px; border-radius: var(--r-pill);
+    letter-spacing: 0.06em; margin-left: auto;
+    white-space: nowrap;
+    transition: background 0.3s, color 0.3s;
+  }
+  .zone-tag.offline {
+    background: var(--warning); color: var(--navy);
+  }
+  .zone-desc {
+    font-size: 13px; color: var(--navy-50);
+    line-height: 1.5; margin: 0;
+    max-width: 640px;
+  }
+
+  /* ── Editor ── */
   .editor {
     flex: 1;
     background: var(--surface);
@@ -89,7 +163,7 @@
     display: flex; align-items: center; gap: 2px;
     padding: 6px 10px;
     border-bottom: 1px solid var(--navy-08);
-    background: var(--surface-dim);
+    background: var(--surface-cream-strong, var(--navy-04));
     flex-shrink: 0;
   }
   .tool-btn {
@@ -120,7 +194,8 @@
     color: var(--navy);
   }
   textarea::placeholder {
-    color: var(--navy-50);   /* lisible des 2 côtés clair/sombre */
+    color: var(--navy-40);
     font-style: italic;
   }
 </style>
+

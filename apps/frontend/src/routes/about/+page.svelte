@@ -102,7 +102,7 @@
     padding: 100px 24px 80px;
   }
 
-  .hero { margin-bottom: 56px; }
+  .hero { margin-bottom: 56px; isolation: isolate; }
   .hero h1 {
     font-family: var(--font-head); font-weight: 700;
     font-size: clamp(40px, 7vw, 60px); line-height: 1.0;
@@ -110,6 +110,7 @@
   }
   .hero .hl {
     position: relative; color: var(--accent-ink);
+    z-index: 1;
   }
   .hero .hl::before {
     content: ""; position: absolute; left: -6px; right: -6px;

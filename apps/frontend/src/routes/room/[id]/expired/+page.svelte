@@ -78,10 +78,12 @@
     font-family: var(--font-head); font-weight: 700;
     font-size: clamp(40px, 7vw, 56px); line-height: 1.05;
     letter-spacing: -0.02em; color: var(--navy); margin: 26px 0 0;
+    isolation: isolate;
   }
   .hero .hl {
     position: relative; color: var(--accent-ink);
     font-family: var(--font-mono); letter-spacing: 0.08em;
+    z-index: 1;
   }
   .hero .hl::before {
     content: ""; position: absolute; left: -6px; right: -6px;

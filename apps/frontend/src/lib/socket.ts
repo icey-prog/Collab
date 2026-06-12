@@ -5,6 +5,7 @@
  */
 import { io, type Socket } from 'socket.io-client';
 import { browser } from '$app/environment';
+import { initTransport } from './transport';
 
 let socket: Socket | null = null;
 
@@ -12,7 +13,9 @@ export function getSocket(): Socket {
   if (!browser) throw new Error('socket.io is browser-only');
   if (socket) return socket;
 
-  socket = io({
+  const backendUrl = initTransport();
+
+  socket = io(backendUrl || undefined, {
     path: '/socket.io',
     transports: ['websocket', 'polling'],
     withCredentials: true,

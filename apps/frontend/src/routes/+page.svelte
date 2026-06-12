@@ -68,19 +68,20 @@
 
   <main class="viewport">
     <div class="col">
-      <span class="eyebrow">EXXOLAB — Collaboration éphémère</span>
+      <div class="hero-eyebrow eyebrow">EXXOLAB — Collaboration éphémère</div>
       <h1 class="hero">
         Une room.<br>
         Un instant.<br>
         <span class="hl">Disparu après.</span>
       </h1>
-      <p class="hero-sub">Anonyme. Temps réel. Sans compte.</p>
+      <div class="hero-sub">Anonyme. Temps réel. Sans compte.</div>
 
       <div class="action">
 
         {#if state !== 'created'}
           <button
             class="btn btn-cta cta"
+            id="cta"
             class:loading={state === 'loading'}
             on:click={handleCreate}
             disabled={state === 'loading'}
@@ -102,7 +103,7 @@
 
           <p class="cta-hint">ou rejoindre une room existante</p>
 
-          <form class="join" on:submit|preventDefault={handleJoin}>
+          <div class="join">
             <input
               class="field"
               class:error={joinError}
@@ -113,8 +114,8 @@
               on:input={handleJoinInput}
               aria-label="Code room"
             />
-            <button class="btn btn-ghost" type="submit">Rejoindre</button>
-          </form>
+            <button class="btn btn-ghost" on:click={handleJoin}>Rejoindre</button>
+          </div>
           {#if joinError}<p class="join-err">{joinError}</p>{/if}
 
         {:else}
@@ -126,7 +127,7 @@
               <button class="btn btn-ghost" on:click={copyLink}>
                 {copyOk ? '✓ Lien copié' : 'Copier le lien'}
               </button>
-              <button class="btn btn-cta" on:click={enterRoom}>Ouvrir la room</button>
+              <button class="btn btn-cta" style="box-shadow:none;padding:12px;" on:click={enterRoom}>Ouvrir la room</button>
             </div>
           </div>
         {/if}
@@ -181,13 +182,16 @@
   }
 
   /* Hero */
+  .hero-eyebrow { margin-bottom: 26px; }
   .hero {
-    font-family: var(--font-head); font-weight: 700; font-size: 54px;
-    line-height: 1.0; letter-spacing: -0.02em;
-    color: var(--navy); margin: 26px 0 0;
+    font-family: var(--font-head); font-weight: 700;
+    font-size: clamp(48px, 9vw, 68px); line-height: 1.0;
+    letter-spacing: -0.02em; color: var(--navy); margin: 0;
+    isolation: isolate;
   }
   .hero .hl {
     position: relative; color: var(--accent-ink); white-space: nowrap;
+    z-index: 1;
   }
   .hero .hl::before {
     content: ""; position: absolute; left: -6px; right: -6px;
@@ -195,13 +199,13 @@
     border-radius: 6px; z-index: -1; transform: rotate(-0.6deg);
   }
   .hero-sub {
-    font-size: 15px; color: var(--navy-55); margin: 20px 0 0;
+    font-size: 15px; color: var(--navy-55); margin-top: 20px; font-weight: 400;
   }
 
   /* Action zone */
-  .action { margin-top: 48px; }
+  .action { margin-top: 38px; }
   .cta {
-    width: 100%; border-radius: 14px;
+    min-width: 230px;
   }
   .cta.loading { pointer-events: none; opacity: 0.92; }
   .spinner {
@@ -214,18 +218,18 @@
 
   .cta-hint {
     font-size: 13px; color: var(--navy-40);
-    margin: 20px 0 14px;
+    margin-top: 16px; margin-bottom: 12px;
   }
 
   .join {
-    display: flex; gap: 10px; width: 100%;
+    display: flex; gap: 10px; width: 100%; max-width: 380px;
   }
   .join .field {
-    flex: 1; text-align: left; font-size: 16px; border-radius: 12px;
+    flex: 1; text-align: left; font-size: 16px; border-radius: var(--r-md);
   }
   .join .field.error { border-color: var(--error); border-style: solid; }
   .join .btn-ghost {
-    white-space: nowrap; border-radius: 12px; padding: 0 22px;
+    white-space: nowrap; border-radius: var(--r-md); padding: 0 22px;
   }
   .join-err {
     color: #B05656; font-size: 12px; margin: 8px 0 0;
@@ -253,7 +257,8 @@
 
   /* Room created card */
   .room-card {
-    padding: 26px; max-width: 100%;
+    margin-top: 26px;
+    padding: 26px; max-width: 380px;
     animation: slideUp .45s cubic-bezier(.2,.8,.3,1) both;
   }
   @keyframes slideUp {

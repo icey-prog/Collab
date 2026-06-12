@@ -63,7 +63,27 @@
   }
 </script>
 
-<div class="files">
+<div class="files-zone">
+
+  <!-- Zone header -->
+  <div class="zone-header">
+    <div class="zone-title-row">
+      <span class="zone-ico">
+        <svg viewBox="0 0 18 18" fill="none">
+          <path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h3l1.5 1.8H14a1.5 1.5 0 0 1 1.5 1.5v6A1.5 1.5 0 0 1 14 14.8H4a1.5 1.5 0 0 1-1.5-1.5z"
+                stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <h2 class="zone-title">Fichiers partagés</h2>
+      {#if $files.length > 0}
+        <span class="zone-count">{$files.length}</span>
+      {/if}
+      <span class="zone-tag">10 Mo max · 24h</span>
+    </div>
+    <p class="zone-desc">Déposez des fichiers pour les partager avec tous les participants. Ils expirent automatiquement après 24h.</p>
+  </div>
+
+  <!-- Dropzone -->
   <div
     class="dropzone"
     class:over={dragOver}
@@ -71,15 +91,12 @@
     on:dragleave={() => (dragOver = false)}
     on:drop={onDrop}
     on:click={() => inputEl.click()}
+    on:keydown={(e) => e.key === 'Enter' && inputEl.click()}
     role="button" tabindex="0"
+    aria-label="Zone de dépôt de fichiers — cliquer ou glisser"
   >
     <span class="dz-ico">
-      <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
-        <path d="M9 22a5 5 0 0 1-.6-9.96A7 7 0 0 1 22 12.2 4.5 4.5 0 0 1 25 22"
-              stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M17 26V14.5M13 18l4-3.5 4 3.5"
-              stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
+      <img src="/animations/file_share.gif" alt="" class="dz-gif" loading="lazy" />
     </span>
     <div class="dz-title">Glissez vos fichiers ici</div>
     <div class="dz-sub mono">10 Mo max · Expiration 24h</div>
@@ -96,14 +113,14 @@
             <div class="file-sub">{fmtSize(f.size)} · {fmtExpiry(f.expiresAt)}</div>
           </div>
           <div class="file-actions">
-            <a class="icon-btn" href={f.url} target="_blank" rel="noopener" title="Télécharger">
+            <a class="icon-btn" href={f.url} target="_blank" rel="noopener noreferrer" title="Télécharger" aria-label="Télécharger {f.name}">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path d="M8 2v8M5 7.5L8 10.5l3-3M3 13h10"
                       stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </a>
             {#if $isAdmin}
-              <button class="icon-btn danger" on:click={() => onDelete(f)} title="Supprimer">
+              <button class="icon-btn danger" on:click={() => onDelete(f)} title="Supprimer" aria-label="Supprimer {f.name}">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                   <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5"
                         stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
@@ -115,22 +132,64 @@
       {/each}
     </div>
   {/if}
+
 </div>
 
 <style>
-  .files { display: flex; flex-direction: column; min-height: 0; }
+  .files-zone { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
+
+  /* ── Zone header ── */
+  .zone-header { display: flex; flex-direction: column; gap: 8px; }
+  .zone-title-row { display: flex; align-items: center; gap: 10px; }
+  .zone-ico {
+    width: 22px; height: 22px; display: inline-flex;
+    color: var(--navy-60); flex-shrink: 0;
+  }
+  .zone-ico svg { width: 100%; height: 100%; }
+  .zone-title {
+    font-family: var(--font-head); font-weight: 700;
+    font-size: 17px; color: var(--navy); margin: 0;
+    letter-spacing: -0.01em;
+  }
+  .zone-count {
+    font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+    background: var(--navy); color: var(--paper);
+    padding: 2px 8px; border-radius: var(--r-pill);
+  }
+  .zone-tag {
+    font-family: var(--font-mono); font-size: 10px;
+    color: var(--navy-50); background: var(--navy-06);
+    padding: 3px 8px; border-radius: var(--r-pill);
+    letter-spacing: 0.06em; margin-left: auto; white-space: nowrap;
+  }
+  .zone-desc {
+    font-size: 13px; color: var(--navy-50); line-height: 1.5; margin: 0;
+  }
+
+  /* ── Dropzone ── */
   .dropzone {
     border: 2px dashed var(--navy-25); border-radius: var(--r-lg);
-    padding: 56px 40px; text-align: center; background: var(--navy-04);
+    padding: 48px 40px; text-align: center; background: var(--navy-04);
     display: flex; flex-direction: column; align-items: center; gap: 10px;
     cursor: pointer; transition: background .18s ease, border-color .18s ease;
   }
   .dropzone:hover, .dropzone.over { background: var(--navy-06); border-style: solid; border-color: var(--navy-40); }
-  .dz-ico { color: var(--navy-40); margin-bottom: 4px; }
+  .dropzone:focus-visible { outline: 2px solid var(--chartreuse); outline-offset: 2px; }
+  .dz-ico {
+    color: var(--navy-40); margin-bottom: 4px;
+    width: 110px; height: 110px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .dz-gif {
+    width: 110px; height: auto;
+    object-fit: contain;
+    mix-blend-mode: multiply;
+  }
+  :global(body.theme-dark) .dz-gif { mix-blend-mode: normal; }
   .dz-title { font-family: var(--font-head); font-weight: 600; font-size: 17px; color: var(--navy); }
   .dz-sub { font-size: 13px; color: var(--navy-50); }
 
-  .file-list { margin-top: 22px; display: flex; flex-direction: column; gap: 10px; }
+  .file-list { display: flex; flex-direction: column; gap: 10px; }
   .file-card {
     display: flex; align-items: center; gap: 16px; padding: 16px 18px;
     background: var(--surface); border-radius: var(--r-md);
@@ -152,6 +211,7 @@
     border: none; background: var(--navy-06); color: var(--navy-60);
     cursor: pointer; display: flex; align-items: center; justify-content: center;
     text-decoration: none;
+    transition: background .15s, color .15s;
   }
   .icon-btn:hover { background: var(--navy-12); color: var(--navy); }
   .icon-btn.danger:hover { background: rgba(244,168,168,0.25); color: #B05656; }

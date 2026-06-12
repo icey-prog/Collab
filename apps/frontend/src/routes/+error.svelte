@@ -11,6 +11,8 @@
 
   $: subtitle = status === 404
     ? 'La page que vous cherchez n\'existe pas — ou elle a déjà disparu (c\'est un peu notre marque de fabrique).'
+    : status >= 500
+    ? 'Quelque chose s\'est mal passé côté serveur. Pas de panique — ça n\'a rien à voir avec vous.'
     : message;
 </script>
 
@@ -60,9 +62,11 @@
     font-family: var(--font-head); font-weight: 700;
     font-size: clamp(48px, 9vw, 64px); line-height: 1.0;
     letter-spacing: -0.02em; color: var(--navy); margin: 26px 0 0;
+    isolation: isolate;
   }
   .hero .hl {
     position: relative; color: var(--accent-ink); white-space: nowrap;
+    z-index: 1;
   }
   .hero .hl::before {
     content: ""; position: absolute; left: -6px; right: -6px;

@@ -8,17 +8,25 @@
  *   client ← server : 'yjs:state'  { roomId, doc: Uint8Array }      full doc snapshot
  */
 import * as Y from 'yjs';
+import { IndexeddbPersistence } from 'y-indexeddb';
 import type { Socket } from 'socket.io-client';
 
 export interface YDocBundle {
   doc: Y.Doc;
   text: Y.Text;                              // shared text for the notes editor
+  provider: IndexeddbPersistence;            // local indexeddb persistence
   destroy: () => void;
 }
 
 export function createRoomDoc(socket: Socket, roomId: string): YDocBundle {
   const doc = new Y.Doc();
   const text = doc.getText('notes');
+
+  // 0) Persistance locale via IndexedDB (Offline support)
+  const provider = new IndexeddbPersistence(`collab-room-${roomId}`, doc);
+  provider.on('synced', () => {
+    console.debug(`[y-indexeddb] Local data loaded for room ${roomId}`);
+  });
 
   // 1) Request initial state
   socket.emit('yjs:state', { roomId, sv: Y.encodeStateVector(doc) });
@@ -48,10 +56,12 @@ export function createRoomDoc(socket: Socket, roomId: string): YDocBundle {
   return {
     doc,
     text,
+    provider,
     destroy() {
       doc.off('update', onLocal);
       socket.off('yjs:update', onUpdate);
       socket.off('yjs:state',  onState);
+      provider.destroy();
       doc.destroy();
     }
   };

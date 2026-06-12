@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount, onDestroy } from 'svelte';
   import {
     activeModule, sbCollapsed, participants, isAdmin,
     expiresLabel, type Module
@@ -6,17 +7,36 @@
   import { questions } from '$lib/stores/qa';
   import { files }     from '$lib/stores/files';
   import PaletteSwitch from './PaletteSwitch.svelte';
+  import NetworkBadge from './NetworkBadge.svelte';
   import { mode, toggleMode } from '$lib/stores/theme';
 
   export let roomId: string;
   export let onClose: () => void;
 
   let copied = false;
-  async function copyCode() {
-    try { await navigator.clipboard.writeText(roomId); copied = true; setTimeout(()=>copied=false, 1500); } catch {}
-  }
   const setMod = (m: Module) => activeModule.set(m);
   const toggle = () => sbCollapsed.update((v) => !v);
+
+  // ── Multi-GIF Slider ──
+  const heroMedia = [
+    '/animations/hand_ball.gif',
+    '/animations/wardrobe.jpg',
+    '/animations/gratitude.gif',
+    '/animations/spongebob.png',
+    '/animations/fire_elmo.png'
+  ];
+  let currentMediaIdx = 0;
+  let mediaTimer: ReturnType<typeof setInterval>;
+
+  onMount(() => {
+    mediaTimer = setInterval(() => {
+      currentMediaIdx = (currentMediaIdx + 1) % heroMedia.length;
+    }, 30000); // 30s as requested
+  });
+
+  onDestroy(() => {
+    if (mediaTimer) clearInterval(mediaTimer);
+  });
 </script>
 
 <aside class="sidebar" class:collapsed={$sbCollapsed}>
@@ -87,23 +107,16 @@
       </button>
     </div>
 
-    <div class="room-util">
-      <div class="ru-top">
-        <span class="ru-label">Room active</span>
-        <span class="pill pill-online"><span class="dot"></span>{$participants} en ligne</span>
-      </div>
-      <div class="ru-mid">
-        <span class="sb-code">{roomId}</span>
-        <button class="ru-copy" on:click={copyCode} title={copied ? 'Copié' : 'Copier le lien'}>
-          {#if copied}✓{:else}
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-              <rect x="5.5" y="5.5" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.4"/>
-              <path d="M3.5 10.5A1.5 1.5 0 0 1 2.5 9V4A1.5 1.5 0 0 1 4 2.5h5a1.5 1.5 0 0 1 1.5 1.5"
-                    stroke="currentColor" stroke-width="1.4"/>
-            </svg>
-          {/if}
-        </button>
-      </div>
+    <!-- Hero card animée — signature visuelle Collab -->
+    <div class="hero-card">
+      {#key currentMediaIdx}
+        <img
+          src={heroMedia[currentMediaIdx]}
+          alt="Animation"
+          class="hero-gif"
+          loading="lazy"
+        />
+      {/key}
     </div>
 
     <nav class="sb-nav">
@@ -141,7 +154,10 @@
       </div>
 
       <div class="nav-group">
-        <div class="nav-label">Room</div>
+        <div class="nav-label" style="display:flex; justify-content:space-between; align-items:center;">
+          Room
+          <NetworkBadge />
+        </div>
         <div class="nav-item static">
           <span class="ico">
             <svg viewBox="0 0 18 18" fill="none">
@@ -200,33 +216,37 @@
 
   /* — rail unifié avec panel (pas de border entre) — */
   .rail {
-    width: 56px; flex-shrink: 0; height: 100%;
+    width: 64px; flex-shrink: 0; height: 100%;
     background: var(--paper);
+    border-right: 1px solid var(--navy-08);
     display: flex; flex-direction: column; align-items: center;
-    padding: 14px 0 12px; gap: 2px;
+    padding: 18px 0 16px; gap: 4px;
   }
   .rlogo {
-    width: 34px; height: 34px; border-radius: 9px; background: var(--brand);
+    width: 38px; height: 38px; border-radius: 11px; background: var(--brand);
     display: flex; align-items: center; justify-content: center;
-    font-family: var(--font-head); font-weight: 700; font-size: 15px; color: var(--paper);
-    margin-bottom: 10px; position: relative; text-decoration: none;
+    font-family: var(--font-head); font-weight: 700; font-size: 18px; color: var(--paper);
+    margin-bottom: 8px; position: relative; text-decoration: none;
   }
   .rlogo::after {
     content: ""; position: absolute; right: 6px; bottom: 6px;
     width: 5px; height: 5px; border-radius: 50%; background: var(--chartreuse);
   }
   .ri {
-    width: 38px; height: 38px; border-radius: 8px;
+    width: 42px; height: 42px; border-radius: var(--r-pill);
     display: flex; align-items: center; justify-content: center;
     color: var(--navy-50); cursor: pointer; border: none; background: transparent;
     transition: background .18s ease, color .18s ease;
   }
-  .ri svg { width: 17px; height: 17px; }
+  .ri svg { width: 19px; height: 19px; }
   .ri:hover { background: var(--navy-04); color: var(--navy); }
   .ri.on {
+    background: var(--navy);
+    color: var(--paper);
+  }
+  :global(body.theme-dark) .ri.on {
     background: var(--surface-cream-strong);
     color: var(--navy);
-    box-shadow: inset 0 -2px 0 var(--chartreuse);
   }
   .rsep { width: 24px; height: 1px; background: var(--navy-10); margin: 8px 0; }
   .rspacer { flex: 1; }
@@ -239,8 +259,8 @@
 
   /* — panel unifié avec rail (même bg) — */
   .panel {
-    width: 244px; flex-shrink: 0; height: 100%;
-    background: var(--paper);
+    width: 256px; flex-shrink: 0; height: 100%;
+    background: var(--surface);
     display: flex; flex-direction: column; overflow: hidden;
     transition: width .3s cubic-bezier(.4,0,.2,1), opacity .22s ease;
   }
@@ -264,61 +284,86 @@
   }
   .collapse:hover { background: var(--navy-06); color: var(--navy); }
 
-  /* room utility card */
-  .room-util {
-    margin: 6px 12px 8px; padding: 12px 13px;
-    background: var(--surface); border: 1px solid var(--navy-10);
-    border-radius: 10px;
+  /* Hero card animé — basket sur doigt = équilibre éphémère */
+  .hero-card {
+    margin: 8px 12px 16px;
+    overflow: hidden;
+    position: relative;
+    display: flex;
+    justify-content: center;
   }
-  .ru-top { display: flex; align-items: center; justify-content: space-between; }
-  .ru-label {
-    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
-    color: var(--navy-40); font-weight: 600;
+  .hero-gif {
+    width: 100%; height: 140px;
+    object-fit: contain;
+    display: block;
+    mix-blend-mode: multiply;
+    animation: fade-in 0.8s ease-out forwards;
   }
-  .ru-mid { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
-  .sb-code {
-    font-family: var(--font-mono); font-weight: 500; font-size: 19px;
-    color: var(--navy); letter-spacing: 0.08em;
+  @keyframes fade-in {
+    from { opacity: 0; transform: scale(0.97); }
+    to { opacity: 1; transform: scale(1); }
   }
-  .ru-copy {
-    width: 30px; height: 30px; border-radius: 8px;
-    border: none; background: var(--navy-06); color: var(--navy-55);
-    cursor: pointer; display: flex; align-items: center; justify-content: center;
+  :global(body.theme-dark) .hero-gif { mix-blend-mode: normal; }
+  .hero-tagline {
+    margin-top: 6px;
+    display: flex; flex-direction: column;
+    font-family: var(--font-head);
+    line-height: 1.1;
   }
-  .ru-copy:hover { background: var(--navy-12); color: var(--navy); }
+  .hero-line1 {
+    font-size: 11px; font-weight: 500;
+    color: var(--navy-55);
+    letter-spacing: 0.04em;
+  }
+  .hero-line2 {
+    font-size: 13px; font-weight: 700;
+    color: var(--navy);
+    letter-spacing: -0.01em;
+  }
 
-  /* nav (Claude category-tab pattern adapté) */
-  .sb-nav { padding: 16px 14px; flex: 1; overflow: auto; }
-  .nav-group + .nav-group { margin-top: 24px; }
+  /* nav (Premium pill pattern) */
+  .sb-nav {
+    padding: 20px 16px; flex: 1; overflow-y: auto;
+    scrollbar-width: none; /* Firefox */
+  }
+  .sb-nav::-webkit-scrollbar { display: none; } /* Chrome/Safari */
+
+  .nav-group + .nav-group { margin-top: 28px; }
   .nav-label {
     font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase;
-    color: var(--navy-40); font-weight: 600; padding: 0 10px 9px;
+    color: var(--navy-40); font-weight: 600; padding: 0 16px 12px;
   }
   .nav-item {
-    display: flex; align-items: center; gap: 11px;
-    padding: 9px 12px; border-radius: var(--r-md);
-    color: var(--navy-60); font-size: 14px; font-weight: 500;
-    cursor: pointer; min-height: 40px;
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 16px; border-radius: var(--r-pill);
+    color: var(--navy-60); font-size: 14.5px; font-weight: 500;
+    cursor: pointer; min-height: 44px;
     transition: background .18s ease, color .18s ease;
-    margin-bottom: 2px;
+    margin-bottom: 4px;
     border: none; background: transparent; width: 100%; text-align: left;
   }
   .nav-item:hover { background: var(--navy-04); color: var(--navy); }
   .nav-item.static { cursor: default; }
   .nav-item.static:hover { background: transparent; color: var(--navy-60); }
-  .nav-item .ico { width: 18px; height: 18px; flex-shrink: 0; color: var(--navy-50); display: inline-flex; }
+  .nav-item .ico { width: 20px; height: 20px; flex-shrink: 0; color: var(--navy-50); display: inline-flex; }
   .nav-item .txt { flex: 1; }
   .nav-item .meta { font-family: var(--font-mono); font-size: 12px; color: var(--navy-40); }
   .nav-item .badge {
     background: var(--navy-08); color: var(--navy-70);
     font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: var(--r-pill);
   }
+  
   .nav-item.active {
-    background: var(--surface-cream-strong);
-    color: var(--navy); font-weight: 600;
+    background: var(--navy);
+    color: var(--paper); font-weight: 600;
   }
-  .nav-item.active .ico { color: var(--navy); }
+  .nav-item.active .ico { color: var(--paper); }
   .nav-item.active .badge { background: var(--chartreuse); color: var(--accent-ink); }
+
+  :global(body.theme-dark) .nav-item.active {
+    background: var(--surface-cream-strong); color: var(--navy);
+  }
+  :global(body.theme-dark) .nav-item.active .ico { color: var(--navy); }
 
   /* footer */
   .sb-foot { padding: 10px 14px 14px; }

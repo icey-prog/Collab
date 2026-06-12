@@ -19,11 +19,17 @@
   import FilesModule  from '$lib/components/FilesModule.svelte';
   import QAModule     from '$lib/components/QAModule.svelte';
   import ToastStack   from '$lib/components/ToastStack.svelte';
+  import Loader       from '$lib/components/Loader.svelte';
 
   $: roomId = $page.params.id?.toUpperCase() ?? '';
 
   let yBundle: YDocBundle | null = null;
   let countdownTimer: ReturnType<typeof setInterval> | null = null;
+  let copied = false;
+
+  async function copyCode() {
+    try { await navigator.clipboard.writeText(roomId); copied = true; setTimeout(()=>copied=false, 1500); } catch {}
+  }
 
   /* ─────────────────────────────────────────────────────
    *  Socket wiring
@@ -45,10 +51,11 @@
     });
 
     s.on('room:full',   () => status.set('full'));
+    
+    // Bug #5 centralisation handler room:closed
     s.on('room:closed', () => {
       status.set('closed');
-      pushToast('La room a été close par l\'administrateur', 'info', 5000);
-      setTimeout(() => goto('/'), 1500);
+      goto(`/room/${roomId}/expired`);
     });
 
     s.on('participants:count', ({ count }) => participants.set(count));
@@ -61,6 +68,13 @@
 
     /* Connect + join */
     s.emit('join:room', { roomId });
+
+    // TEMPORARY: simulate connection so we can preview the UI without the backend
+    setTimeout(() => {
+      status.set('joined');
+      participants.set(1);
+      isAdmin.set(true);
+    }, 600);
   }
 
   function closeRoom() {
@@ -140,6 +154,19 @@
         </div>
       </div>
       <div class="status">
+        <div class="room-code-badge">
+          <span class="code-text">{roomId}</span>
+          <button class="code-copy-btn" on:click={copyCode} title={copied ? 'Copié' : 'Copier le lien'}>
+            {#if copied}✓{:else}
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                <rect x="5.5" y="5.5" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.5"/>
+                <path d="M3.5 10.5A1.5 1.5 0 0 1 2.5 9V4A1.5 1.5 0 0 1 4 2.5h5a1.5 1.5 0 0 1 1.5 1.5" stroke="currentColor" stroke-width="1.5"/>
+              </svg>
+            {/if}
+          </button>
+        </div>
+        <div class="status-sep"></div>
+
         {#if $status === 'connecting'}
           <span class="pill pill-connecting"><span class="dot"></span>Connexion…</span>
         {:else if $status === 'joined'}
@@ -155,7 +182,11 @@
     </div>
 
     <div class="module">
-      {#if $activeModule === 'notes' && yBundle}
+      {#if $status === 'connecting'}
+        <div class="connect-overlay">
+          <Loader size="lg" label="Établissement de la connexion…" />
+        </div>
+      {:else if $activeModule === 'notes' && yBundle}
         <NotesModule yText={yBundle.text} />
       {:else if $activeModule === 'files'}
         <FilesModule {roomId} />
@@ -195,7 +226,7 @@
 
   .main {
     flex: 1; display: flex; flex-direction: column; min-width: 0;
-    background: var(--surface-dim);
+    background: var(--paper);
   }
 
   /* ── Topbar IDE-like ── */
@@ -209,7 +240,7 @@
   .tab {
     display: inline-flex; align-items: center; gap: 8px;
     padding: 0 18px; height: 100%;
-    background: var(--surface-dim); color: var(--navy);
+    background: var(--paper); color: var(--navy);
     font-size: 13.5px; font-weight: 600;
     border-right: 1px solid var(--navy-10);
     position: relative;
@@ -232,6 +263,27 @@
 
   .status { display: flex; align-items: center; }
 
+  .room-code-badge {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface); border: 1px solid var(--navy-10);
+    padding: 4px 5px 4px 10px; border-radius: 8px;
+  }
+  .code-text {
+    font-family: var(--font-mono); font-weight: 600; font-size: 14px;
+    color: var(--navy); letter-spacing: 0.05em;
+  }
+  .code-copy-btn {
+    width: 24px; height: 24px; border-radius: 6px;
+    border: none; background: var(--navy-06); color: var(--navy-55);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.15s, color 0.15s;
+    font-weight: bold;
+  }
+  .code-copy-btn:hover { background: var(--chartreuse); color: var(--accent-ink); }
+  .status-sep {
+    width: 1px; height: 16px; background: var(--navy-10); margin: 0 14px;
+  }
+
   .pill-connecting {
     background: var(--navy-08); color: var(--navy-60);
   }
@@ -249,7 +301,11 @@
   .module {
     flex: 1; padding: 24px 28px; overflow: auto; min-height: 0;
     display: flex; flex-direction: column;
-    background: var(--surface-dim);
+    background: var(--paper);
+  }
+  .connect-overlay {
+    flex: 1;
+    display: flex; align-items: center; justify-content: center;
   }
 
   /* ── Status bar bottom (IDE style) ── */
