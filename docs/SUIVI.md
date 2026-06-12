@@ -102,6 +102,183 @@ Une seule codebase. Build différent selon cible.
 
 **Budget tokens estimé** : ~200k pour finir tout le front MVP (desktop + PWA + web).
 
+---
+
+## Plan FRONT 100% (étendu — 11 lots) — 2026-06-10
+
+> Intègre les skills : Elegance Formula (35 principes), Frontend Design (DFII ≥ 8),
+> Touch Psychology, Frontend Security, Kaizen, Clean Code.
+
+### Direction esthétique consolidée
+
+| Critère | Valeur |
+|---|---|
+| **Nom de la stance** | *Bauhaus IDE × Calm Tech Editorial* (mélange 2 max — autorisé) |
+| **DFII estimé** | Impact 5 + Fit 4 + Feasibility 5 + Performance 5 − Risk 2 = **17 → Excellent** (mais cappé à 15) |
+| **Ancre différenciation** | Cream-strong cursor + chartreuse comme **seul** signal d'action + status bar IDE bottom |
+| **Identité visible logo masqué** | Tab actif chartreuse 2px top + breadcrumb mono + sidebar paper unifié |
+| **Anti-pattern évité** | Pas de Inter (utilise Space Grotesk + DM Mono), pas de purple gradient SaaS, pas de Tailwind default |
+
+### Cibles plateforme final
+
+| Plateforme | Format | Rôle | Build |
+|---|---|---|---|
+| Windows / Mac / Linux | App Tauri installable | Host **ou** client (peut lancer Docker) | `npm run tauri build` |
+| Android / iOS | PWA installable (Lot C + F) | Client uniquement | `npm run build` (static) |
+| Browser (n'importe lequel) | Web SPA | Client | `npm run build` (servi par Vercel) |
+
+Une seule codebase. Build différent selon cible.
+
+---
+
+### Lots A–G (existants, rappel)
+
+A · Fix bugs audit + visuels (30min)
+F · PWA manifest (30min)
+B · Transport abstraction (2h)
+C · Offline persistence (3h)
+D · UI Host /host (2h)
+G · Tauri wrap (3h core)
+E · Pages secondaires /legal /privacy /admin (1h)
+
+### Lots H–K (nouveaux — pour atteindre 100%)
+
+#### Lot H — Animation system + Lottie + GIF zones — 2h30
+
+Philosophie motion (Elegance §21 Micro-Experience + Frontend Design §Motion) :
+- Une seule entrée forte par page (pas de spam micro-motion)
+- 200ms ease-in-out standard pour transitions UI
+- Lottie max 30KB par fichier (budget perf 3G)
+- Respecter `prefers-reduced-motion`
+
+- [ ] `package.json` — ajouter `lottie-svelte ^0.6` (~12KB gzip)
+- [ ] Nouveau `lib/components/Lottie.svelte` — wrapper avec `loop` `autoplay` `controls` props
+- [ ] Nouveau `lib/components/Skeleton.svelte` — placeholder loading (Elegance §21)
+- [ ] Nouveau `lib/components/MotionGuard.svelte` — wrapper qui désactive animations si `prefers-reduced-motion`
+- [ ] Nouveau dossier `static/animations/` avec 9 fichiers Lottie .json à fournir/créer
+
+**Zones d'animation par écran :**
+
+| Page | Zone | Type | Fichier source |
+|---|---|---|---|
+| `/` Landing | Hero ambient (4-spoke radial subtle pulse) | Lottie loop | `static/animations/hero-pulse.json` |
+| `/` Landing | CTA "Créer room" hover bounce | CSS transform | inline |
+| `/` Landing | Room créée success (checkmark dessiné) | Lottie one-shot | `static/animations/success-check.json` |
+| `/` Landing | Loading "Génération du code…" | Lottie loop | `static/animations/spinner-dots.json` |
+| `/about` | Stats counters animés (count-up) | JS interval | inline |
+| `/about` | Feature cards hover (subtle lift + scale 1.02) | CSS | inline |
+| `/join/[id]` | QR code pulse rings (connecting) | Lottie loop | `static/animations/connecting-rings.json` |
+| `/join/[id]` | Card slide-in initial | CSS keyframe | inline |
+| `/room/[id]` | Sidebar collapse (déjà OK) | CSS transition | existant |
+| `/room/[id]` | Tab switch slide horizontal (fade + 8px translateX) | CSS keyframe | inline |
+| `/room/[id]` | Empty Q&A illustration (mascotte qui demande question) | Lottie loop | `static/animations/empty-qa.json` |
+| `/room/[id]` | File upload progress ring | Lottie progress | `static/animations/upload-ring.json` |
+| `/room/[id]` | Toast slide-in (déjà OK) | CSS | existant |
+| `/room/[id]/expired` | Ghost fade-out subtil sur code room | Lottie one-shot | `static/animations/ghost-fade.json` |
+| `+error.svelte` | Broken thread illustration | Lottie loop | `static/animations/error-thread.json` |
+| `/host` Tauri | QR code reveal (scan ligne lumineuse) | Lottie one-shot | `static/animations/qr-reveal.json` |
+| `/host` Tauri | Server status (pulse vert si UP) | Lottie loop | `static/animations/server-pulse.json` |
+
+**Zones GIF possibles** (alternative Lottie si fichier source dispo) :
+- Démo onboarding (`/about` ou modal first-visit) — GIF 800×450 max 500KB
+- Présentation features Notes/Files/Q&A — 3 GIFs courts dans `/about`
+
+Fichiers Lottie à créer/sourcer :
+- Option 1 : commandes LottieFiles (paid)
+- Option 2 : conversion AE → Bodymovin (manuel)
+- Option 3 : Lottie generative via Rive (gratuit, plus simple)
+
+#### Lot I — Touch Psychology + A11y (mobile-first) — 1h30
+
+Applique `touch-psychology.md` + Elegance §16.
+
+- [ ] Audit tous les boutons : `min-height: 44px` + `padding` pour hit area (visuel peut rester plus petit)
+- [ ] Audit nav items sidebar : déjà 40px → passer à 44px en mode mobile (`@media (max-width:768px)`)
+- [ ] Ajouter `:active` scale 0.97 sur tous les boutons (feedback tap < 50ms)
+- [ ] Ajouter `aria-label` partout où icon-only (close, copy, delete, vote)
+- [ ] Focus visible : `:focus-visible` outline 2px chartreuse offset 2px (a11y keyboard)
+- [ ] Contrast ratio audit ≥ 4.5:1 sur tous les texts (utiliser `--navy-60` minimum sur paper)
+- [ ] Test screen reader (NVDA) sur landing + room
+- [ ] Skip link `<a href="#main">Aller au contenu</a>` (a11y)
+- [ ] Réorganiser thumb zone mobile (CTA en bas, nav en haut)
+- [ ] Vibration API (haptic) sur mobile : `navigator.vibrate(10)` pour confirmation tap CTA
+
+#### Lot J — Frontend Security hardening — 1h30
+
+Applique `SKILL_frontend_security.md`.
+
+- [ ] CSP strict via `<meta http-equiv="Content-Security-Policy">` dans `app.html` :
+      ```
+      default-src 'self';
+      img-src 'self' data: blob:;
+      connect-src 'self' wss: ws:;
+      style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+      font-src https://fonts.gstatic.com;
+      script-src 'self';
+      frame-ancestors 'none';
+      ```
+- [ ] `package.json` — ajouter `dompurify ^3.2` (~16KB) pour sanitize les contenus Y.js si markdown render plus tard
+- [ ] Audit `innerHTML` partout dans le code (grep) → remplacer par `textContent` ou DOMPurify
+- [ ] Validation URL côté `getRoomPreview` + `joinCode` (déjà OK via regex `isValidRoomCode`)
+- [ ] `rel="noopener noreferrer"` sur tous les `target="_blank"` (déjà partiel, audit complet)
+- [ ] `<link rel="noopener" ...>` sur images uploadées (prévention tabnabbing)
+- [ ] Subresource Integrity (SRI) sur Google Fonts CDN — calculer hash
+- [ ] HSTS via Vercel config (header `Strict-Transport-Security`)
+- [ ] Trusted Types policy (browsers récents) — opt-in graduel
+- [ ] Désactiver clickjacking : `X-Frame-Options: DENY` via Vercel headers
+
+#### Lot K — Tests E2E Playwright — 2h
+
+Applique `kaizen` (test before next iteration) + `clean-code` (F.I.R.S.T.).
+
+- [ ] `package.json` — `@playwright/test ^1.49`
+- [ ] `playwright.config.ts` — multi-browser (Chromium, Firefox, WebKit), retries 2
+- [ ] `tests/e2e/landing.spec.ts` — create room, join room invalide, palette switch
+- [ ] `tests/e2e/room.spec.ts` — joindre, taper notes, switch module, dark mode toggle
+- [ ] `tests/e2e/expired.spec.ts` — page expired CTA fonctionne
+- [ ] `tests/e2e/about.spec.ts` — links + scroll smooth
+- [ ] `tests/e2e/a11y.spec.ts` — `axe-playwright` audit chaque page (0 violations critiques)
+- [ ] `tests/e2e/visual.spec.ts` — screenshot regression (avant/après refactor)
+- [ ] CI GitHub Actions — run `playwright test` on PR
+
+### Ordre d'attaque mis à jour (11 lots)
+
+```
+1. Lot A  — fixes audit + visuels                (30min · libère propre)
+2. Lot F  — manifest PWA                         (30min · install mobile)
+3. Lot B  — transport abstraction                (2h · prérequis C, D, G)
+4. Lot J  — security hardening                   (1h30 · CSP avant prod)
+5. Lot C  — offline persistence                  (3h · service worker)
+6. Lot H  — animations Lottie + motion system    (2h30 · UX delight)
+7. Lot I  — touch + a11y polish                  (1h30 · mobile-first)
+8. Lot D  — UI host /host                        (2h · prérequis Tauri)
+9. Lot G  — Tauri wrap desktop                   (3h · installeurs)
+10. Lot E — pages secondaires                    (1h · peut attendre back)
+11. Lot K — tests Playwright E2E                 (2h · validation finale)
+```
+
+**Total : ~20h dev · ~320k tokens** pour finir tout le front 100 % avant touche back.
+
+### Budget perfo enforced (CI gate)
+
+```
+build/_app/immutable/entry/*.js     <  20 KB gzip
+total transféré sur /              <  60 KB gzip
+Lottie chaque fichier              <  30 KB
+GIF chaque fichier                 <  500 KB
+```
+
+Si dépassé → build échoue.
+
+### Checklist Elegance Formula par écran (avant handoff)
+
+- [ ] **Visual** : 1 seul focal point / CTA principal par écran (§6)
+- [ ] **Spacing** : aligné sur grille 8px (§4)
+- [ ] **Cognition** : compréhensible en < 3s par un nouveau user (§8 Krug)
+- [ ] **A11y** : targets ≥ 44×44, contraste ≥ 4.5:1 (§16)
+- [ ] **Consistency** : composants héritent du design system (§19)
+- [ ] **Delight** : feedback tap < 50ms + haptique sur action principale (§28)
+
 ### Prérequis utilisateur final
 
 | Cible | Prérequis |
@@ -177,6 +354,17 @@ Une seule codebase. Build différent selon cible.
 ---
 
 ## Journal de session
+
+### Session 2026-06-10 — Plan front 100% étendu (11 lots) + zones animation
+**Durée** ~30 min · **Tokens** ~50k
+- Refonte Room IDE-like livrée (commit cd89763) — Sidebar unifiée, status bar bottom, surfaces différenciées, contraste placeholder fixé
+- Lots H/I/J/K ajoutés pour atteindre 100% : animations Lottie + GIF zones (17 zones cartographiées par page), touch psychology + a11y, security hardening (CSP/DOMPurify/SRI), tests Playwright E2E
+- Direction esthétique nommée : **Bauhaus IDE × Calm Tech Editorial** (DFII 15/15)
+- Skills appliqués : Elegance Formula, Frontend Design, Touch Psy, Security, Kaizen, Clean Code
+- Budget perfo enforced : Lottie 30KB max, GIF 500KB max, total transferred < 60KB sur /
+- Ordre attaque mis à jour : A → F → B → J → C → H → I → D → G → E → K
+- Budget total : ~20h dev · ~320k tokens
+- **Prochaine session** : démarrer Lot A après validation
 
 ### Session 2026-06-08 (suite) — Cible plateformes finales + Lot G Tauri
 **Durée** ~20 min · **Tokens** ~30k
