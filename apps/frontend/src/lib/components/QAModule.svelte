@@ -1,14 +1,28 @@
 <script lang="ts">
   import { questions } from '$lib/stores/qa';
   import { getSocket } from '$lib/socket';
-  import { isAdmin } from '$lib/stores/room';
+  import { isAdmin, pushToast } from '$lib/stores/room';
+  import { isOnline } from '$lib/stores/network';
+  import { outboxAdd } from '$lib/offline/outbox';
 
-  let text = '';
-  let voted = new Set<string>();
+  let text    = '';
+  let voted   = new Set<string>();
+  let roomId  = '';
 
-  function submit() {
+  // roomId injected by parent via prop (optional — gracefully absent)
+  export { roomId };
+
+  async function submit() {
     const t = text.trim();
     if (t.length < 3 || t.length > 500) return;
+
+    if (!$isOnline) {
+      await outboxAdd('qa:add', roomId, { text: t });
+      pushToast('Question enregistrée hors ligne — envoyée au retour réseau', 'info', 5000);
+      text = '';
+      return;
+    }
+
     getSocket().emit('qa:add', { text: t });
     text = '';
   }

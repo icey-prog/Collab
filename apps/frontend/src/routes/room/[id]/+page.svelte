@@ -11,6 +11,8 @@
     activeModule, participants, isAdmin, status,
     expiresInSec, expiresLabel, pushToast
   } from '$lib/stores/room';
+  import { registerOutboxFlush } from '$lib/stores/network';
+  import { outboxFlush, outboxCount } from '$lib/offline/outbox';
   import { questions, type Question } from '$lib/stores/qa';
   import { files,     type RoomFile } from '$lib/stores/files';
 
@@ -90,11 +92,24 @@
   /* ─────────────────────────────────────────────────────
    *  Lifecycle
    * ───────────────────────────────────────────────────── */
-  onMount(() => {
+  onMount(async () => {
     wire();
     countdownTimer = setInterval(() => {
       expiresInSec.update((s) => Math.max(0, s - 1));
     }, 1000);
+
+    // Register outbox flush — fires automatically when network comes back online
+    registerOutboxFlush(async () => {
+      const n = await outboxFlush(getSocket());
+      if (n > 0) pushToast(`${n} action${n > 1 ? 's' : ''} synchronisée${n > 1 ? 's' : ''} après retour réseau`, 'success');
+    });
+
+    // Flush any pending actions from previous offline session
+    const pending = await outboxCount();
+    if (pending > 0) {
+      const flushed = await outboxFlush(getSocket());
+      if (flushed > 0) pushToast(`${flushed} action${flushed > 1 ? 's' : ''} synchronisée${flushed > 1 ? 's' : ''} (session précédente)`, 'success');
+    }
   });
 
   onDestroy(() => {
@@ -187,11 +202,11 @@
           <Loader size="lg" label="Établissement de la connexion…" />
         </div>
       {:else if $activeModule === 'notes' && yBundle}
-        <NotesModule yText={yBundle.text} />
+        <NotesModule yText={yBundle.text} awareness={yBundle.awareness} />
       {:else if $activeModule === 'files'}
         <FilesModule {roomId} />
       {:else if $activeModule === 'qa'}
-        <QAModule />
+        <QAModule {roomId} />
       {/if}
     </div>
 

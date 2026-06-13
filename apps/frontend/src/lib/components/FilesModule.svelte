@@ -2,6 +2,7 @@
   import { files, type RoomFile } from '$lib/stores/files';
   import { isAdmin, pushToast } from '$lib/stores/room';
   import { getSocket } from '$lib/socket';
+  import { isOnline } from '$lib/stores/network';
 
   export let roomId: string;
 
@@ -25,6 +26,10 @@
   }
 
   async function upload(file: File) {
+    if (!$isOnline) {
+      pushToast('Upload impossible hors ligne — reconnectez-vous puis réessayez', 'info', 5000);
+      return;
+    }
     if (file.size > 10 * 1024 * 1024) {
       pushToast('Fichier trop lourd (10 Mo max)', 'info', 4000);
       return;

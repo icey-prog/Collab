@@ -64,8 +64,6 @@
 
   <ChromeTR />
 
-  <a href="/" class="spec-home"><span class="acc"></span> Collab</a>
-
   <main class="viewport">
     <div class="col">
       <div class="hero-eyebrow eyebrow">EXXOLAB — Collaboration éphémère</div>
@@ -190,13 +188,11 @@
     isolation: isolate;
   }
   .hero .hl {
-    position: relative; color: var(--accent-ink); white-space: nowrap;
-    z-index: 1;
-  }
-  .hero .hl::before {
-    content: ""; position: absolute; left: -6px; right: -6px;
-    top: 8%; bottom: 8%; background: var(--chartreuse);
-    border-radius: 6px; z-index: -1; transform: rotate(-0.6deg);
+    color: var(--accent-ink); white-space: nowrap;
+    background: var(--chartreuse);
+    border-radius: 7px;
+    padding: 2px 10px;
+    display: inline-block;
   }
   .hero-sub {
     font-size: 15px; color: var(--navy-55); margin-top: 20px; font-weight: 400;

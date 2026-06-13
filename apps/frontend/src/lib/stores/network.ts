@@ -4,17 +4,23 @@ import { browser } from '$app/environment';
 export type NetworkMode = 'cloud' | 'lan' | 'offline';
 
 export const networkMode = writable<NetworkMode>('cloud');
-export const isOnline = writable<boolean>(true);
+export const isOnline    = writable<boolean>(true);
+
+// Subscribers can register a flush callback (set by socket layer at runtime)
+let _flushCallback: (() => Promise<void>) | null = null;
+
+export function registerOutboxFlush(fn: () => Promise<void>) {
+  _flushCallback = fn;
+}
 
 if (browser) {
-  // Init online status
   isOnline.set(navigator.onLine);
 
-  // Listen to network events
   window.addEventListener('online', () => {
     isOnline.set(true);
-    // You might want to trigger a reconnection or sync here
+    _flushCallback?.();
   });
+
   window.addEventListener('offline', () => {
     isOnline.set(false);
   });

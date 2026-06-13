@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="112" fill="#364C84"/>
+  <text x="256" y="360" font-family="'Space Grotesk', 'Helvetica Neue', sans-serif"
+        font-size="300" font-weight="700" text-anchor="middle" fill="#E7F1A8">C</text>
+  <circle cx="384" cy="140" r="42" fill="#E7F1A8"/>
+</svg>
