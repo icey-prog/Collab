@@ -554,6 +554,195 @@ Les micro-interactions polies sont 80% du "feel premium" d'une app. Un bouton qu
 
 ---
 
+# Annexe 3 — Lot D (page host Tauri) + Lot I (a11y mobile-first)
+
+## Concept clé — Détecter l'environnement runtime
+
+**Analogie**
+Un costume polyvalent qui sait s'adapter à la météo. Quand il pleut, il sort un capuchon. Quand il fait beau, il le replie. C'est le **même costume**, mais il regarde le ciel (l'environnement) et change son comportement.
+
+Notre app est en SvelteKit. Quand on la lance dans un navigateur classique, elle est web. Quand on la bundle dans Tauri (desktop), elle est embarquée. La détection se fait via une variable que Tauri injecte dans `window`.
+
+**Code**
+[apps/frontend/src/lib/tauri.ts](../apps/frontend/src/lib/tauri.ts)
+```ts
+export function isTauri(): boolean {
+  if (typeof window === 'undefined') return false;   // SSR safe
+  return !!(window.__TAURI__ || window.__TAURI_INTERNALS__);
+}
+```
+
+**Pourquoi deux clés**
+Tauri 1.x utilisait `__TAURI__`. Tauri 2.x a changé pour `__TAURI_INTERNALS__`. On teste les deux pour rester compatible.
+
+**Concept**
+*Feature detection vs UA sniffing*. On vérifie qu'une **capacité** existe (l'objet API), pas que c'est tel navigateur. Plus robuste, ne casse pas si Tauri renomme.
+
+**Leçon**
+Toujours préférer "est-ce que cette feature existe ?" à "est-ce que c'est tel browser/runtime ?".
+
+---
+
+## Scanner un QR code sans dépendance — BarcodeDetector API
+
+**Analogie**
+Avant, scanner un QR demandait d'installer une grosse librairie (jsQR, zxing, etc.) — comme acheter un scanner industriel pour ouvrir une boîte de céréales. Aujourd'hui, **les navigateurs modernes ont un scanner intégré** : `BarcodeDetector`. Tu lui passes une vidéo, il te rend les codes détectés.
+
+**Code**
+[apps/frontend/src/lib/components/JoinPanel.svelte](../apps/frontend/src/lib/components/JoinPanel.svelte)
+```ts
+const detector = new BarcodeDetector({ formats: ['qr_code'] });
+const stream   = await navigator.mediaDevices.getUserMedia({
+  video: { facingMode: 'environment' }   // caméra arrière mobile
+});
+const video    = document.createElement('video');
+video.srcObject = stream; await video.play();
+
+const loop = async () => {
+  const results = await detector.detect(video);
+  if (results.length > 0) {
+    const url = results[0].rawValue;
+    // ... navigation
+  } else {
+    requestAnimationFrame(loop);
+  }
+};
+loop();
+```
+
+**Concept**
+*requestAnimationFrame loop* pour scanner en continu sans bloquer le thread.
+
+**Fallback gracieux**
+`BarcodeDetector` n'existe pas sur Firefox ni Safari iOS. On vérifie `'BarcodeDetector' in window` au mount, et on cache le bouton sinon. **Pas d'erreur, juste pas de feature.**
+
+---
+
+## A11y — Skip link : la porte de derrière pour les utilisateurs clavier
+
+**Analogie**
+Une bibliothèque immense. Tu cherches le livre sur l'étagère du fond. Si tu dois passer devant 200 étagères avant d'arriver, tu vas abandonner. Le **skip link** c'est un raccourci en haut de la page qui dit "tu peux sauter direct au contenu principal".
+
+**Visible uniquement au focus clavier** — ne pollue pas l'UI visuelle.
+
+**Code**
+[apps/frontend/src/routes/+layout.svelte](../apps/frontend/src/routes/+layout.svelte)
+```svelte
+<a class="skip-link" href="#main-content">Aller au contenu</a>
+```
+```css
+.skip-link {
+  position: fixed;
+  top: -100px;        /* caché hors écran */
+  left: 12px; z-index: 9999;
+  /* ... */
+  transition: top .2s ease;
+}
+.skip-link:focus { top: 12px; }   /* apparaît au Tab */
+```
+
+**Concept**
+*Visible-on-focus pattern*. Standard WCAG 2.4.1 "Bypass Blocks".
+
+**Pourquoi pas display:none**
+Si on met `display:none`, le lien n'est pas dans la tabulation du tout. Le truc, c'est qu'il doit être focusable mais visuellement caché. `position: fixed; top: -100px` est le pattern propre.
+
+---
+
+## A11y — `:focus-visible` : le contour qui n'apparaît qu'au clavier
+
+**Analogie**
+Quand tu cliques sur un bouton à la souris, tu vois où tu cliques — pas besoin de marquer le focus. Mais si tu navigues au clavier (Tab Tab Tab), tu as **besoin** de voir où tu es. `:focus-visible` détecte automatiquement la différence et n'affiche le contour qu'au clavier.
+
+**Code**
+```css
+:focus { outline: none; }                                  /* enlève le contour browser par défaut */
+:focus-visible {
+  outline: 2px solid var(--chartreuse);
+  outline-offset: 3px;
+}
+```
+
+**Concept**
+*Heuristique navigateur* — Chrome/Firefox utilisent la "dernière interaction" pour décider. Souris = pas de contour. Clavier = contour. Touch = pas de contour.
+
+**Anti-pattern courant**
+Mettre `outline: none` sans rien remplacer = casse l'accessibilité clavier. Toujours fournir un état focus visible.
+
+---
+
+## A11y — Touch targets 44×44 minimum (WCAG 2.5.5)
+
+**Analogie**
+Sur mobile, ton doigt fait ~9mm de large. Si un bouton fait 20×20px (~6mm), tu vas le rater une fois sur trois. **44×44 px ≈ 11mm** = surface confortable pour le doigt moyen.
+
+Apple recommande 44pt, Android 48dp. WCAG 2.5.5 (Level AAA) demande 44×44 CSS pixels.
+
+**Code**
+[apps/frontend/src/app.css](../apps/frontend/src/app.css)
+```css
+@media (max-width: 768px) {
+  button, [role="button"], .nav-item, .tab, .ri, .tool-btn, .icon-btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+```
+
+**Concept**
+*Hit area* vs *visual size*. Le bouton peut visuellement faire 24×24px (icône), mais il doit avoir 44px de zone cliquable autour. C'est pour ça qu'on utilise `min-height` + `min-width` + `padding`, pas `width: 24px`.
+
+---
+
+## A11y — `:active` + `navigator.vibrate` : le tap qui "réagit"
+
+**Analogie**
+Quand tu appuies sur un vrai bouton physique, tu sens le ressort, tu entends le clic. Sur un écran, tu n'as rien. Le rôle du dev = **simuler** cette sensation avec deux signaux :
+- **Visuel** : `transform: scale(0.97)` quand le bouton est appuyé → le doigt "voit" qu'il a touché quelque chose
+- **Haptique** : `navigator.vibrate(10)` → vibration courte de 10ms sur mobile
+
+**Code**
+```css
+.btn:active { transform: scale(0.97); transition-duration: 0.08s; }
+```
+```ts
+async function handleCreate() {
+  if (navigator.vibrate) navigator.vibrate(10);    // tap feedback
+  /* ... */
+  if (navigator.vibrate) navigator.vibrate([20, 30, 20]); // success pattern
+}
+```
+
+**Concept**
+*Touch Psychology §4* — la latence perçue. Si l'utilisateur n'a aucun feedback dans les 50ms suivant son tap, il pense que ça n'a pas marché → re-tap (parfois double-trigger). Avec feedback < 50ms, il sait que c'est parti.
+
+**Leçon**
+Le ressenti "premium" d'une app vient en grande partie de ces micro-détails. Sans eux, tout sent le bricolage même si la logique est correcte.
+
+---
+
+## `prefers-reduced-motion` — respecter les utilisateurs sensibles
+
+**Analogie**
+Certaines personnes ont des troubles vestibulaires (vertige). Les animations rapides leur donnent mal au cœur. Le système d'exploitation a un réglage "réduire les animations". Le navigateur l'expose via une media query CSS.
+
+**Code**
+```css
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+```
+
+On ne supprime pas tout — on réduit à 0.01ms (= instantané mais le code marche pareil).
+
+**Concept**
+*User preference respect*. C'est de l'a11y de niveau 2 — pas obligatoire WCAG mais marqueur d'app pro.
+
+---
+
 # Méta-leçons de la session
 
 1. **Audit = re-lire, pas survoler.** J'ai signalé #6 comme bug, c'était faux. Toujours valider l'ordre des opérations en relisant.

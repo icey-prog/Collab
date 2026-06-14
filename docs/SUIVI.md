@@ -10,7 +10,7 @@
 |---|---|---|---|
 | Design system (collab.css) | ✅ Stable | 100 | 4 palettes A/B/C/D × clair/sombre, tokens, animations |
 | Maquettes statiques | ✅ Stable | 100 | index.html · Landing.html · Room.html avec annotations |
-| Frontend SvelteKit | 🟡 En cours | 97 | Lots A+B+F+C+J + toolbar formatage livrés. Copy buttons Claude-style. Manque Lots D/G/E/H/I/K |
+| Frontend SvelteKit | 🟡 En cours | 99 | Lots A+B+F+C+J+D+I livrés. Tous bugs fixés. Page /host (HostPanel QR + JoinPanel scan). A11y full. Manque Lots G/E/H/K |
 | Backend Fastify | 🔴 À démarrer | 10 | Seul `plugins/yjs.ts` rédigé — squelette serveur attendu |
 | Déploiement | 🔴 À démarrer | 0 | Vercel front + Cloudflare Tunnel back à configurer |
 | Tests | 🔴 À démarrer | 0 | Aucun test écrit |
@@ -356,6 +356,24 @@ Si dépassé → build échoue.
 ---
 
 ## Journal de session
+
+### Session 2026-06-13 (Lots D + I) — Page /host Tauri + A11y mobile-first
+**Durée** ~40 min · **Tokens** ~60k
+- `lib/tauri.ts` — `isTauri()` + stubs invoke wrappers (start_backend, get_local_ip, etc.)
+- `lib/components/HostPanel.svelte` — QR code SVG navy (qrcode npm), code room, URL, LAN tag
+- `lib/components/JoinPanel.svelte` — input code centré, scan QR via BarcodeDetector API native
+- `routes/host/+page.svelte` — onglets Héberger / Rejoindre, default à Rejoindre si non-Tauri
+- `routes/+page.svelte` — auto-redirect vers /host si isTauri()
+- Skip link a11y dans +layout.svelte (top: -100px → 12px au focus, WCAG 2.4.1)
+- :focus-visible chartreuse outline global (visible uniquement clavier)
+- prefers-reduced-motion respecté (animations 0.01ms)
+- :active scale(0.97) global (Touch Psy §4 — feedback ≤ 50ms)
+- navigator.vibrate haptic sur CTA create (10ms tap, 20-30-20 pattern success)
+- @media max-width 768px: tous boutons/nav-items à min 44×44px (WCAG 2.5.5)
+- id="main-content" sur tous les <main> pour la skip link
+- 0 erreurs TypeScript, build prod OK
+- Front : 97 → 99%. Reste Lots G/E/H/K.
+- **Prochaine session** : backend Fastify OU Lot H Lottie OU finir Lot G Tauri
 
 ### Session 2026-06-13 (toolbar + copy) — Formatage NotesModule + copy Claude-style
 **Durée** ~25 min · **Tokens** ~30k

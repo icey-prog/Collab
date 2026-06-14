@@ -22,7 +22,7 @@
   <ChromeTR />
   <a href="/" class="spec-home"><span class="acc"></span> Collab</a>
 
-  <main class="viewport">
+  <main id="main-content" class="viewport">
     <div class="col">
       <span class="eyebrow">Erreur · {status}</span>
       <h1 class="hero">

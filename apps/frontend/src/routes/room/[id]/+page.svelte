@@ -143,7 +143,7 @@
 
   <Sidebar {roomId} onClose={closeRoom} />
 
-  <main class="main">
+  <main id="main-content" class="main">
     <!-- Topbar IDE-like : tab + actions -->
     <div class="topbar">
       <div class="tab-row">

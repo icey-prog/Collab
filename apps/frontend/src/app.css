@@ -62,6 +62,43 @@
 
 * { box-sizing: border-box; }
 
+/* ============================================================
+   A11Y — Focus-visible (Lot I)
+   Outline chartreuse uniquement quand l'utilisateur navigue au clavier.
+   ============================================================ */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--chartreuse);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
+  outline: 2px solid var(--chartreuse);
+  outline-offset: 3px;
+}
+
+/* Respect prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================
+   A11Y — Touch targets ≥ 44px en mobile (Lot I — WCAG 2.5.5)
+   ============================================================ */
+@media (max-width: 768px) {
+  button, [role="button"], a.btn, .nav-item, .tab, .ri, .tool-btn, .icon-btn, .icon-copy, .icon-del {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  /* Code copy bouton / room badge — micro-controls peuvent rester compact */
+  .code-copy-btn { min-height: 32px; min-width: 32px; }
+}
+
 html, body {
   margin: 0;
   padding: 0;
@@ -138,7 +175,10 @@ html, body {
   box-shadow: var(--shadow-cta);
 }
 .btn-cta:hover { transform: translateY(-2px); box-shadow: 0 10px 28px color-mix(in srgb, var(--chartreuse) 65%, transparent); }
-.btn-cta:active { transform: translateY(0); box-shadow: var(--shadow-cta); }
+.btn-cta:active { transform: translateY(0) scale(0.97); box-shadow: var(--shadow-cta); }
+
+/* Touch feedback global — Lot I (≤50ms response, Touch Psychology §4) */
+.btn:active, button:not(.btn):active { transform: scale(0.97); transition-duration: 0.08s; }
 
 .btn-ghost {
   background: transparent;

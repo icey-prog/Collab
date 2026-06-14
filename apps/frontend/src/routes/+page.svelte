@@ -1,7 +1,14 @@
 <script lang="ts">
+  import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { createRoom, isValidRoomCode } from '$lib/api/room';
+  import { isTauri } from '$lib/tauri';
   import ChromeTR from '$lib/components/ChromeTR.svelte';
+
+  // Tauri desktop : auto-redirect vers /host (mode local-first)
+  onMount(() => {
+    if (isTauri()) goto('/host');
+  });
 
   type State = 'rest' | 'loading' | 'created' | 'error';
 
@@ -14,11 +21,14 @@
 
   async function handleCreate() {
     if (state === 'loading') return;
+    // Haptic feedback mobile — Lot I (Touch Psy §6 confirmation tap)
+    if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(10);
     state = 'loading';
     errorMsg = '';
     try {
       const res = await createRoom();
       roomId = res.roomId;
+      if (navigator.vibrate) navigator.vibrate([20, 30, 20]);  // success pattern
       state = 'created';
     } catch (e) {
       errorMsg = e instanceof Error ? e.message : 'Erreur réseau';
@@ -64,7 +74,7 @@
 
   <ChromeTR />
 
-  <main class="viewport">
+  <main id="main-content" class="viewport">
     <div class="col">
       <div class="hero-eyebrow eyebrow">EXXOLAB — Collaboration éphémère</div>
       <h1 class="hero">
