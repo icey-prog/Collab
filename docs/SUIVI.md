@@ -10,7 +10,7 @@
 |---|---|---|---|
 | Design system (collab.css) | ✅ Stable | 100 | 4 palettes A/B/C/D × clair/sombre, tokens, animations |
 | Maquettes statiques | ✅ Stable | 100 | index.html · Landing.html · Room.html avec annotations |
-| Frontend SvelteKit | 🟡 En cours | 96 | Lots A+B+F+C+J livrés. Tous bugs audit #1-#10 fixés. CodeMirror 6 + curseurs multi-user. Manque Lots D/G/E/H/I/K |
+| Frontend SvelteKit | 🟡 En cours | 97 | Lots A+B+F+C+J + toolbar formatage livrés. Copy buttons Claude-style. Manque Lots D/G/E/H/I/K |
 | Backend Fastify | 🔴 À démarrer | 10 | Seul `plugins/yjs.ts` rédigé — squelette serveur attendu |
 | Déploiement | 🔴 À démarrer | 0 | Vercel front + Cloudflare Tunnel back à configurer |
 | Tests | 🔴 À démarrer | 0 | Aucun test écrit |
@@ -356,6 +356,18 @@ Si dépassé → build échoue.
 ---
 
 ## Journal de session
+
+### Session 2026-06-13 (toolbar + copy) — Formatage NotesModule + copy Claude-style
+**Durée** ~25 min · **Tokens** ~30k
+- Wire toolbar bloc-notes : boutons B / I / Code / H / Liste / Citation câblés sur fonctions CodeMirror
+- Raccourcis clavier : Ctrl+B (gras), Ctrl+I (italique), Ctrl+E (code inline)
+- `wrapSelection(left, right)` : entoure la sélection avec markers markdown
+- `toggleLinePrefix(prefix)` : toggle ajout/retrait de prefix ligne (titre, liste, citation)
+- Bouton copy-all dans toolbar (copie tout le bloc-notes en presse-papier)
+- Q&A : bouton copy par question, apparition au hover façon Claude Desktop (`opacity: 0` → `1` au `:hover`)
+- Feedback visuel : check ✓ en chartreuse pendant 1.5s après copie
+- 0 erreurs TypeScript
+- **Prochaine session** : Lot I (a11y mobile-first) ou Lot H (Lottie animations)
 
 ### Session 2026-06-13 (Lot J + bugs low) — Sécurité + hardening final
 **Durée** ~30 min · **Tokens** ~40k

@@ -443,6 +443,117 @@ Si demain un développeur introduit accidentellement une faille XSS (ex: oubli d
 
 ---
 
+# Annexe 2 — Toolbar formatage + copy buttons (façon Claude Desktop)
+
+## Concept clé — `view.dispatch()` : la transaction CodeMirror
+
+**Analogie**
+Tu veux modifier un livre partagé entre plusieurs lecteurs. Tu ne peux pas attraper le livre et écrire dedans n'importe comment — tu écris une note "page 12, remplace 'salut' par '**salut**'" et tu la glisses dans une boîte. CodeMirror lit la boîte, applique la modification, met à jour tout le monde.
+
+Cette boîte s'appelle une **Transaction**. La fonction `view.dispatch()` est la fente où on glisse la note.
+
+```ts
+view.dispatch({
+  changes:   { from: sel.from, to: sel.to, insert: '**salut**' },
+  selection: { anchor: sel.from + 2, head: sel.from + 7 },  // garde "salut" sélectionné
+});
+```
+
+**Concept**
+*Architecture immutable / transactionnelle*. Le state CodeMirror n'est jamais muté directement — on produit un nouveau state à chaque dispatch. C'est pourquoi yCollab fonctionne : Y.js observe les dispatches, applique son CRDT, et un nouveau state émerge.
+
+---
+
+## Comment "Gras" est implémenté
+
+**Analogie**
+Tu surlignes "bonjour" dans ton texte. Tu cliques le bouton **B**. Le système prend ta sélection, écrit `**` devant et `**` derrière, et te repositionne pour que tu voies toujours "bonjour" surligné (juste maintenant entre les étoiles). En markdown, ça veut dire "gras".
+
+**Code**
+[apps/frontend/src/lib/components/NotesModule.svelte](../apps/frontend/src/lib/components/NotesModule.svelte)
+```ts
+function wrapSelection(left: string, right: string = left) {
+  const sel = view.state.selection.main;
+  const text = view.state.sliceDoc(sel.from, sel.to);
+  view.dispatch({
+    changes: { from: sel.from, to: sel.to, insert: `${left}${text}${right}` },
+    selection: { anchor: sel.from + left.length, head: sel.from + left.length + text.length },
+  });
+}
+
+const fmtBold   = () => wrapSelection('**');
+const fmtItalic = () => wrapSelection('*');
+const fmtCode   = () => wrapSelection('`');
+```
+
+Plus les keymaps `Ctrl+B / Ctrl+I / Ctrl+E`.
+
+**Leçon**
+*Une seule fonction générique* (`wrapSelection`) qui prend les markers en paramètre = une seule chose à debugger pour 3 boutons différents. DRY.
+
+---
+
+## Toggle ligne (titre, liste, citation)
+
+**Analogie**
+Un interrupteur. Tu cliques "H" → ta ligne devient titre (`# `). Tu re-cliques → ça redevient une ligne normale. Pareil pour liste (`- `) et citation (`> `).
+
+**Code**
+```ts
+function toggleLinePrefix(prefix: string) {
+  const line = view.state.doc.lineAt(sel.from);
+  const already = line.text.startsWith(prefix);
+  view.dispatch({
+    changes: already
+      ? { from: line.from, to: line.from + prefix.length, insert: '' }
+      : { from: line.from, insert: prefix },
+  });
+}
+```
+
+**Concept**
+*Idempotence toggle*. Cliquer 2 fois = revenir à l'état initial. Pattern fréquent en UI.
+
+---
+
+## Boutons copy "Claude Desktop style"
+
+**Analogie**
+Claude Desktop affiche un petit bouton "copier" qui apparaît **uniquement quand tu survoles** un message ou un bloc de code. Pas de pollution visuelle hors hover. Sur clic : check vert pendant 1.5s, puis disparaît.
+
+**Code CSS — apparition au hover**
+```css
+.qa-actions {
+  opacity: 0;
+  transition: opacity .18s ease;
+}
+.qa-card:hover .qa-actions,
+.qa-card:focus-within .qa-actions { opacity: 1; }
+
+/* Garder visible pendant le ✓ même si on a quitté le hover */
+.qa-card:has(.icon-copy.copied) .qa-actions { opacity: 1; }
+```
+
+**Code JS — feedback visuel temporisé**
+```ts
+let copiedId: string | null = null;
+async function copyQuestion(q) {
+  await navigator.clipboard.writeText(q.text);
+  copiedId = q.id;
+  setTimeout(() => { if (copiedId === q.id) copiedId = null; }, 1500);
+}
+```
+
+Le `if (copiedId === q.id)` dans le `setTimeout` évite un bug : si tu copies A puis B rapidement, le timer de A ne doit pas effacer l'état de B.
+
+**Concept**
+*Stale closure protection*. Un timer écrit dans le futur peut être obsolète quand il s'exécute. On vérifie que ce qu'on s'apprête à effacer est encore ce qu'on pense.
+
+**Leçon**
+Les micro-interactions polies sont 80% du "feel premium" d'une app. Un bouton qui apparaît au bon moment + un feedback visuel court + une protection contre les races = expérience Claude Desktop.
+
+---
+
 # Méta-leçons de la session
 
 1. **Audit = re-lire, pas survoler.** J'ai signalé #6 comme bug, c'était faux. Toujours valider l'ordre des opérations en relisant.

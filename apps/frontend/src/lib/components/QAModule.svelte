@@ -42,6 +42,17 @@
     if (m < 60) return `il y a ${m} min`;
     return `il y a ${Math.floor(m / 60)}h`;
   }
+
+  /* ── Copy question text — Claude Desktop style ──────────── */
+
+  let copiedId: string | null = null;
+  async function copyQuestion(q: { id: string; text: string }) {
+    try {
+      await navigator.clipboard.writeText(q.text);
+      copiedId = q.id;
+      setTimeout(() => { if (copiedId === q.id) copiedId = null; }, 1500);
+    } catch { /* clipboard denied */ }
+  }
 </script>
 
 <div class="qa-zone">
@@ -113,9 +124,29 @@
             <div class="qa-q">{q.text}</div>
             <div class="qa-time">{fmtTime(q.createdAt)}</div>
           </div>
-          {#if $isAdmin}
-            <button class="icon-del" on:click={() => remove(q.id)} title="Supprimer" aria-label="Supprimer cette question">×</button>
-          {/if}
+          <div class="qa-actions">
+            <button
+              class="icon-copy"
+              class:copied={copiedId === q.id}
+              on:click={() => copyQuestion(q)}
+              title={copiedId === q.id ? 'Copié' : 'Copier la question'}
+              aria-label="Copier la question"
+            >
+              {#if copiedId === q.id}
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <path d="M3.5 8.5l3 3 6-6.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              {:else}
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                  <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.4"/>
+                  <path d="M3 10.5V4.5a1.5 1.5 0 0 1 1.5-1.5h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                </svg>
+              {/if}
+            </button>
+            {#if $isAdmin}
+              <button class="icon-del" on:click={() => remove(q.id)} title="Supprimer" aria-label="Supprimer cette question">×</button>
+            {/if}
+          </div>
         </div>
       {/each}
     </div>
@@ -205,6 +236,24 @@
   .qa-body { flex: 1; }
   .qa-q { font-size: 14.5px; color: var(--navy); line-height: 1.45; }
   .qa-time { font-family: var(--font-mono); font-size: 11px; color: var(--navy-40); margin-top: 6px; }
+  .qa-actions {
+    display: flex; align-items: center; gap: 4px;
+    opacity: 0; transition: opacity .18s ease;
+  }
+  .qa-card:hover .qa-actions,
+  .qa-card:focus-within .qa-actions { opacity: 1; }
+  .qa-actions .icon-copy.copied,
+  .qa-card:has(.icon-copy.copied) .qa-actions { opacity: 1; } /* keep visible during ✓ */
+
+  .icon-copy {
+    width: 28px; height: 28px; border-radius: 6px; border: none; cursor: pointer;
+    background: transparent; color: var(--navy-50);
+    display: inline-flex; align-items: center; justify-content: center;
+    transition: background .15s, color .15s;
+  }
+  .icon-copy:hover { background: var(--navy-08); color: var(--navy); }
+  .icon-copy.copied { background: var(--chartreuse); color: var(--accent-ink); }
+
   .icon-del {
     width: 28px; height: 28px; border-radius: 6px; border: none; cursor: pointer;
     background: transparent; color: var(--navy-40); font-size: 18px; line-height: 1;

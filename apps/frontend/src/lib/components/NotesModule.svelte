@@ -22,6 +22,53 @@
     return typeof c === 'string' && COLOR_RE.test(c) ? c : '#888888';
   }
 
+  /* ── Toolbar formatting (markdown) ─────────────────────── */
+
+  function wrapSelection(left: string, right: string = left) {
+    if (!view) return;
+    const { state } = view;
+    const sel = state.selection.main;
+    const text = state.sliceDoc(sel.from, sel.to);
+    view.dispatch({
+      changes: { from: sel.from, to: sel.to, insert: `${left}${text}${right}` },
+      selection: { anchor: sel.from + left.length, head: sel.from + left.length + text.length },
+    });
+    view.focus();
+  }
+
+  function toggleLinePrefix(prefix: string) {
+    if (!view) return;
+    const { state } = view;
+    const sel = state.selection.main;
+    const line = state.doc.lineAt(sel.from);
+    const already = line.text.startsWith(prefix);
+    view.dispatch({
+      changes: already
+        ? { from: line.from, to: line.from + prefix.length, insert: '' }
+        : { from: line.from, insert: prefix },
+    });
+    view.focus();
+  }
+
+  const fmtBold   = () => wrapSelection('**');
+  const fmtItalic = () => wrapSelection('*');
+  const fmtCode   = () => wrapSelection('`');
+  const fmtHead   = () => toggleLinePrefix('# ');
+  const fmtQuote  = () => toggleLinePrefix('> ');
+  const fmtList   = () => toggleLinePrefix('- ');
+
+  /* ── Copy whole document to clipboard ──────────────────── */
+
+  let copyState: 'idle' | 'done' = 'idle';
+  async function copyAll() {
+    if (!view) return;
+    try {
+      await navigator.clipboard.writeText(view.state.doc.toString());
+      copyState = 'done';
+      setTimeout(() => (copyState = 'idle'), 1500);
+    } catch { /* clipboard denied */ }
+  }
+
   // Fix #9: also cap peer name length to avoid layout breaking by a malicious peer
   function safeName(n: unknown): string {
     if (typeof n !== 'string') return 'Anon';
@@ -46,7 +93,13 @@
         lineNumbers(),
         highlightActiveLine(),
         history(),
-        keymap.of([...defaultKeymap, ...historyKeymap]),
+        keymap.of([
+          ...defaultKeymap,
+          ...historyKeymap,
+          { key: 'Mod-b', run: () => { fmtBold();   return true; } },
+          { key: 'Mod-i', run: () => { fmtItalic(); return true; } },
+          { key: 'Mod-e', run: () => { fmtCode();   return true; } },
+        ]),
         markdown(),
         cmPlaceholder('Commencez à écrire — synchronisation temps réel via Y.js. Les curseurs des autres participants sont visibles.'),
         EditorView.lineWrapping,
@@ -112,12 +165,38 @@
   <!-- Éditeur -->
   <div class="editor">
     <div class="editor-toolbar">
-      <button class="tool-btn" title="Gras (Ctrl+B)"><b>B</b></button>
-      <button class="tool-btn" title="Italique (Ctrl+I)" style="font-style:italic;">I</button>
-      <button class="tool-btn" title="Code (Ctrl+E)" style="font-family:var(--font-mono);font-size:12px;">&lt;/&gt;</button>
-      <button class="tool-btn" title="Titre">H</button>
+      <button class="tool-btn" on:click={fmtBold}   title="Gras (Ctrl+B)" aria-label="Gras"><b>B</b></button>
+      <button class="tool-btn" on:click={fmtItalic} title="Italique (Ctrl+I)" aria-label="Italique" style="font-style:italic;">I</button>
+      <button class="tool-btn" on:click={fmtCode}   title="Code inline (Ctrl+E)" aria-label="Code" style="font-family:var(--font-mono);font-size:12px;">&lt;/&gt;</button>
+      <span class="tb-sep"></span>
+      <button class="tool-btn" on:click={fmtHead}  title="Titre" aria-label="Titre">H</button>
+      <button class="tool-btn" on:click={fmtList}  title="Liste" aria-label="Liste">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <circle cx="3" cy="4" r="1" fill="currentColor"/>
+          <circle cx="3" cy="8" r="1" fill="currentColor"/>
+          <circle cx="3" cy="12" r="1" fill="currentColor"/>
+          <path d="M6.5 4h7M6.5 8h7M6.5 12h7" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        </svg>
+      </button>
+      <button class="tool-btn" on:click={fmtQuote} title="Citation" aria-label="Citation">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+          <path d="M3 5h2v6H3zM7 5h2v6H7z" fill="currentColor" opacity="0.6"/>
+        </svg>
+      </button>
       <span class="tb-sep"></span>
       <span class="tb-meta">Markdown · CodeMirror 6</span>
+      <button class="tool-btn copy-all" on:click={copyAll} title="Copier tout le bloc-notes" aria-label="Copier tout">
+        {#if copyState === 'done'}
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <path d="M3.5 8.5l3 3 6-6.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        {:else}
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+            <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" stroke="currentColor" stroke-width="1.4"/>
+            <path d="M3 10.5V4.5a1.5 1.5 0 0 1 1.5-1.5h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+        {/if}
+      </button>
     </div>
 
     <div class="cm-host" bind:this={host}></div>
@@ -198,6 +277,8 @@
   }
   .tool-btn:hover { background: var(--navy-08); color: var(--navy); }
   .tool-btn:active { background: var(--navy-12); }
+  .tool-btn.copy-all { color: var(--navy-50); }
+  .tool-btn.copy-all:hover { background: var(--chartreuse); color: var(--accent-ink); }
   .tb-sep { width: 1px; height: 18px; background: var(--navy-12); margin: 0 6px; }
   .tb-meta {
     font-family: var(--font-mono); font-size: 11px;
