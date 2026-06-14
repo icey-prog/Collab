@@ -10,7 +10,7 @@
 |---|---|---|---|
 | Design system (collab.css) | ✅ Stable | 100 | 4 palettes A/B/C/D × clair/sombre, tokens, animations |
 | Maquettes statiques | ✅ Stable | 100 | index.html · Landing.html · Room.html avec annotations |
-| Frontend SvelteKit | 🟡 En cours | 94 | Lots A+B+F+C livrés. Bugs #7-#10 + audit #1-#4 fixés. CodeMirror 6 + curseurs multi-user. Manque Lots D/G/E/H/I/J/K |
+| Frontend SvelteKit | 🟡 En cours | 96 | Lots A+B+F+C+J livrés. Tous bugs audit #1-#10 fixés. CodeMirror 6 + curseurs multi-user. Manque Lots D/G/E/H/I/K |
 | Backend Fastify | 🔴 À démarrer | 10 | Seul `plugins/yjs.ts` rédigé — squelette serveur attendu |
 | Déploiement | 🔴 À démarrer | 0 | Vercel front + Cloudflare Tunnel back à configurer |
 | Tests | 🔴 À démarrer | 0 | Aucun test écrit |
@@ -356,6 +356,22 @@ Si dépassé → build échoue.
 ---
 
 ## Journal de session
+
+### Session 2026-06-13 (Lot J + bugs low) — Sécurité + hardening final
+**Durée** ~30 min · **Tokens** ~40k
+- Fix #5 : singleton dbPromise + onclose reset → plus de leak connexions IDB
+- Fix #7 : `pagehide` ajouté en + de `beforeunload` (Safari iOS lifecycle)
+- Fix #8 : fallback identité en variable module-level (Safari mode privé)
+- Fix #9 : validation regex couleur peer `^#[0-9A-Fa-f]{6}$` + cap nom 40 chars
+- Fix #10 : TTL 4h outbox + `outboxPruneStale()` au flush (promesse éphémère respectée)
+- Lot J : CSP via SvelteKit config (`csp.mode: 'auto'`) — hashes générés au build
+  Directives : default-src/script-src 'self', style fonts.googleapis, img data/blob, connect wss/ws/https, object-src 'none', base-uri 'self'
+  Note : frame-ancestors via HTTP header côté Vercel/Nginx (pas supporté meta tag)
+- Build prod testé : CSP injectée correctement avec hash auto Svelte
+- Audit `{@html}` / `innerHTML` : aucun usage → safe par défaut
+- Audit `target="_blank"` : 1 occurrence (FilesModule) déjà avec `rel="noopener noreferrer"`
+- Front : 94 → 96%. 0 erreurs TypeScript.
+- **Prochaine session** : backend Fastify pour test multi-onglet réel OU Lot H/D/I
 
 ### Session 2026-06-13 (fin) — Audit /find-bugs + fixes #1-#4 + export Kairos
 **Durée** ~40 min · **Tokens** ~60k

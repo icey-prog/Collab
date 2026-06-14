@@ -3,12 +3,17 @@
  * Flushed automatically when network comes back online.
  *
  * Stored fields preserve offline_created_at for audit trail.
+ *
+ * Fix #5 : singleton dbPromise (no leak of IDB connections).
+ * Fix #10: TTL 4h (cleanup of stale items — Collab promesse "éphémère").
  */
 import type { Socket } from 'socket.io-client';
 
 const DB_NAME = 'collab-outbox';
 const STORE   = 'actions';
 const VERSION = 1;
+
+const TTL_MS  = 4 * 60 * 60 * 1000;  // 4h, aligné sur expiration room serveur (Fix #10)
 
 export interface OutboxAction {
   id:          string;
@@ -18,16 +23,27 @@ export interface OutboxAction {
   createdAt:   number;            // offline_created_at — preserved for audit
 }
 
-/* ── DB helpers ─────────────────────────────────────────── */
+/* ── DB singleton (Fix #5) ──────────────────────────────── */
 
-function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+let dbPromise: Promise<IDBDatabase> | null = null;
+
+function getDB(): Promise<IDBDatabase> {
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, VERSION);
     req.onupgradeneeded = () =>
       req.result.createObjectStore(STORE, { keyPath: 'id' });
-    req.onsuccess = () => resolve(req.result);
-    req.onerror   = () => reject(req.error);
+    req.onsuccess = () => {
+      // If browser closes DB unexpectedly, reset singleton so next call reopens
+      req.result.onclose = () => { dbPromise = null; };
+      resolve(req.result);
+    };
+    req.onerror = () => {
+      dbPromise = null;
+      reject(req.error);
+    };
   });
+  return dbPromise;
 }
 
 /* ── Public API ─────────────────────────────────────────── */
@@ -37,7 +53,7 @@ export async function outboxAdd(
   roomId:  string,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  const db   = await openDB();
+  const db   = await getDB();
   const item: OutboxAction = {
     id:        crypto.randomUUID(),
     type,
@@ -54,7 +70,7 @@ export async function outboxAdd(
 }
 
 export async function outboxGetAll(): Promise<OutboxAction[]> {
-  const db = await openDB();
+  const db = await getDB();
   return new Promise((resolve, reject) => {
     const tx  = db.transaction(STORE, 'readonly');
     const req = tx.objectStore(STORE).getAll();
@@ -64,7 +80,7 @@ export async function outboxGetAll(): Promise<OutboxAction[]> {
 }
 
 async function outboxRemove(id: string): Promise<void> {
-  const db = await openDB();
+  const db = await getDB();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite');
     tx.objectStore(STORE).delete(id);
@@ -74,11 +90,28 @@ async function outboxRemove(id: string): Promise<void> {
 }
 
 /**
+ * Fix #10: removes items older than TTL_MS. Call at mount of any room page.
+ * Returns count of items pruned.
+ */
+export async function outboxPruneStale(): Promise<number> {
+  const items = await outboxGetAll();
+  const now   = Date.now();
+  let pruned  = 0;
+  for (const item of items) {
+    if (now - item.createdAt > TTL_MS) {
+      try { await outboxRemove(item.id); pruned++; } catch { /* leave */ }
+    }
+  }
+  return pruned;
+}
+
+/**
  * Flush all pending outbox actions over the socket.
  * Call when network comes back online.
  *
  * Fix #3: in-memory lock prevents two parallel flushes (online event + onMount race)
  * from emitting each queued action twice.
+ * Fix #10: prunes stale items before flushing.
  */
 let flushing = false;
 
@@ -86,6 +119,7 @@ export async function outboxFlush(socket: Socket): Promise<number> {
   if (flushing) return 0;
   flushing = true;
   try {
+    await outboxPruneStale();
     const items = await outboxGetAll();
     let flushed = 0;
     for (const item of items) {
@@ -110,7 +144,7 @@ export async function outboxFlush(socket: Socket): Promise<number> {
 }
 
 export async function outboxCount(): Promise<number> {
-  const db = await openDB();
+  const db = await getDB();
   return new Promise((resolve, reject) => {
     const tx  = db.transaction(STORE, 'readonly');
     const req = tx.objectStore(STORE).count();

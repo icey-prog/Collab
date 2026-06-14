@@ -16,13 +16,25 @@
   let view:  EditorView | null = null;
   let peers: { id: number; name: string; color: string }[] = [];
 
+  // Fix #9: validate peer color is a real hex (peer controls this field)
+  const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
+  function safeColor(c: unknown): string {
+    return typeof c === 'string' && COLOR_RE.test(c) ? c : '#888888';
+  }
+
+  // Fix #9: also cap peer name length to avoid layout breaking by a malicious peer
+  function safeName(n: unknown): string {
+    if (typeof n !== 'string') return 'Anon';
+    return n.length > 40 ? n.slice(0, 40) + '…' : n;
+  }
+
   function refreshPeers() {
     if (!awareness) { peers = []; return; }
     const list: typeof peers = [];
     awareness.getStates().forEach((state, clientId) => {
       if (clientId === awareness.clientID) return;
       const u = (state as { user?: { name?: string; color?: string } }).user;
-      if (u?.name) list.push({ id: clientId, name: u.name, color: u.color || '#888' });
+      if (u?.name) list.push({ id: clientId, name: safeName(u.name), color: safeColor(u.color) });
     });
     peers = list;
   }

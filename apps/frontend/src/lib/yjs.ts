@@ -43,17 +43,26 @@ const PALETTE = [
   { c: '#D62828', l: '#FBD9D9' },
 ];
 
+// Fix #8: in-memory fallback for Safari private mode (sessionStorage throws there)
+let inMemoryIdentity: UserIdentity | null = null;
+
 function loadOrCreateIdentity(): UserIdentity {
   if (typeof window === 'undefined') return { name: 'Anon', color: '#888', colorLight: '#eee' };
+  if (inMemoryIdentity) return inMemoryIdentity;
   try {
     const raw = sessionStorage.getItem('collab.identity');
-    if (raw) return JSON.parse(raw) as UserIdentity;
-  } catch { /* ignore */ }
+    if (raw) {
+      const parsed = JSON.parse(raw) as UserIdentity;
+      inMemoryIdentity = parsed;
+      return parsed;
+    }
+  } catch { /* sessionStorage refused — fall through */ }
   const animal = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
   const num    = Math.floor(Math.random() * 90) + 10;
   const pal    = PALETTE[Math.floor(Math.random() * PALETTE.length)];
   const id: UserIdentity = { name: `${animal} #${num}`, color: pal.c, colorLight: pal.l };
   try { sessionStorage.setItem('collab.identity', JSON.stringify(id)); } catch { /* ignore */ }
+  inMemoryIdentity = id;
   return id;
 }
 
@@ -141,12 +150,13 @@ export function createRoomDoc(socket: Socket, roomId: string): YDocBundle {
   };
   awareness.on('update', onAwarenessLocal);
 
-  // Cleanup awareness on tab close
+  // Cleanup awareness on tab close — Fix #7: pagehide for Safari iOS (beforeunload ignored)
   const onUnload = () => {
     removeAwarenessStates(awareness, [doc.clientID], 'unload');
   };
   if (typeof window !== 'undefined') {
     window.addEventListener('beforeunload', onUnload);
+    window.addEventListener('pagehide',     onUnload);
   }
 
   return {
@@ -162,6 +172,7 @@ export function createRoomDoc(socket: Socket, roomId: string): YDocBundle {
       awareness.off('update', onAwarenessLocal);
       if (typeof window !== 'undefined') {
         window.removeEventListener('beforeunload', onUnload);
+        window.removeEventListener('pagehide',     onUnload);
       }
       removeAwarenessStates(awareness, [doc.clientID], 'destroy');
       awareness.destroy();

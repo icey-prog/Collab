@@ -12,7 +12,33 @@ const config = {
       precompress: false,
       strict: false
     }),
-    alias: { $lib: 'src/lib' }
+    alias: { $lib: 'src/lib' },
+
+    // Lot J — Content Security Policy.
+    // SvelteKit injects per-build hashes for inline scripts/styles automatically.
+    // 'self'              = own origin (app + statics)
+    // wss:/ws:            = Socket.io WebSocket
+    // fonts.googleapis    = stylesheet for Google Fonts
+    // fonts.gstatic       = font binaries for Google Fonts
+    // data:               = inline favicon / SVG
+    // blob:               = file previews from FilesModule (object URLs)
+    csp: {
+      mode: 'auto',     // hash in static prerender, nonce in SSR (we're static-only here)
+      directives: {
+        'default-src':     ["'self'"],
+        'script-src':      ["'self'"],
+        'style-src':       ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        'font-src':        ["'self'", 'https://fonts.gstatic.com'],
+        'img-src':         ["'self'", 'data:', 'blob:'],
+        'connect-src':     ["'self'", 'wss:', 'ws:', 'https:'],
+        'manifest-src':    ["'self'"],
+        'worker-src':      ["'self'"],
+        'frame-ancestors': ["'none'"],   // anti-clickjacking (replaces X-Frame-Options)
+        'base-uri':        ["'self'"],
+        'form-action':     ["'self'"],
+        'object-src':      ["'none'"],
+      },
+    },
   }
 };
 

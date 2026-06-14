@@ -295,6 +295,154 @@ Lot J planifié. Pas à faire maintenant.
 
 ---
 
+# Annexe — Fixes finaux (Lot J + bugs low #5, #7, #8, #9, #10)
+
+## Fix #5 — Singleton IDB : un seul tiroir, toujours le même
+
+**Analogie**
+On range les chaussettes. Avant : on ouvre un nouveau tiroir à chaque fois → 50 tiroirs ouverts à la fin. Maintenant : on dit "ce tiroir, on le garde ouvert en permanence et on y revient". Une variable au sommet du fichier `dbPromise` qui retient la connexion et la réutilise.
+
+**Code**
+```ts
+let dbPromise: Promise<IDBDatabase> | null = null;
+function getDB() {
+  if (dbPromise) return dbPromise;
+  dbPromise = new Promise(...);
+  req.onsuccess = () => {
+    req.result.onclose = () => { dbPromise = null; }; // si le browser ferme tout seul, on rouvre la prochaine fois
+    resolve(req.result);
+  };
+  return dbPromise;
+}
+```
+
+**Leçon** : la promesse mise en cache au niveau module = pattern singleton léger. Pas de classe, pas de service. Juste un `let` au bon endroit.
+
+---
+
+## Fix #7 — `pagehide` en plus de `beforeunload` : la sonnette qui marche sur tous les téléphones
+
+**Analogie**
+On veut savoir quand quelqu'un quitte la maison. Sur Windows, la sonnette `beforeunload` marche. Sur iPhone Safari, elle est cassée depuis 2022. Solution : on installe **deux sonnettes** différentes. Une au moins fonctionnera.
+
+**Code**
+```ts
+window.addEventListener('beforeunload', onUnload);
+window.addEventListener('pagehide',     onUnload);
+```
+
+**Leçon** : sur le web, la portabilité mobile ≠ desktop. Toujours ceinture+bretelles pour les événements de cycle de vie.
+
+---
+
+## Fix #8 — Fallback en mémoire : le carnet d'adresses qui a aussi une copie dans la tête
+
+**Analogie**
+Le carnet d'adresses (sessionStorage) refuse l'encre en mode privé. Solution : on retient aussi le nom dans la tête (variable module-level). Comme ça, même si le carnet refuse, on garde notre identité tant que la fenêtre est ouverte.
+
+**Code**
+```ts
+let inMemoryIdentity: UserIdentity | null = null;
+
+function loadOrCreateIdentity() {
+  if (inMemoryIdentity) return inMemoryIdentity;   // d'abord la tête
+  try { /* lire sessionStorage */ } catch {}       // sinon le carnet
+  /* générer nouveau */
+  try { sessionStorage.setItem(...); } catch {}    // essayer de l'écrire
+  inMemoryIdentity = id;                            // toujours garder en tête
+  return id;
+}
+```
+
+**Leçon** : 3 niveaux de cache (mémoire → storage → générer). Toujours le moins fragile en premier.
+
+---
+
+## Fix #9 — Validation couleur peer : le videur à l'entrée de la pastille
+
+**Analogie**
+Un peer envoie sa couleur. Avant on faisait confiance. Maintenant, un videur à l'entrée vérifie : "ta couleur, c'est bien un hex 6 caractères ? Sinon je te file la couleur grise par défaut." Pareil pour le nom : "plus de 40 caractères ? Je coupe."
+
+**Code**
+```ts
+const COLOR_RE = /^#[0-9A-Fa-f]{6}$/;
+const safe = COLOR_RE.test(c) ? c : '#888888';
+
+function safeName(n) {
+  if (typeof n !== 'string') return 'Anon';
+  return n.length > 40 ? n.slice(0, 40) + '…' : n;
+}
+```
+
+**Leçon** : tout input externe a un type *attendu*. Si la donnée ne correspond pas, on fournit un fallback raisonnable. Jamais d'erreur visible, jamais de comportement bizarre.
+
+---
+
+## Fix #10 — TTL outbox : le frigo qui se vide tout seul après 4h
+
+**Analogie**
+Le frigo (outbox) avait pas de date d'expiration. Maintenant : à chaque ouverture, on jette ce qui est là depuis plus de 4h. Aligné sur la promesse "Collab disparaît en 4h".
+
+**Code**
+```ts
+const TTL_MS = 4 * 60 * 60 * 1000;
+
+export async function outboxPruneStale() {
+  const items = await outboxGetAll();
+  const now = Date.now();
+  for (const item of items) {
+    if (now - item.createdAt > TTL_MS) await outboxRemove(item.id);
+  }
+}
+
+// Appelé au début de outboxFlush
+export async function outboxFlush(socket) {
+  await outboxPruneStale();   // jette d'abord les périmés
+  /* puis flush le reste */
+}
+```
+
+**Leçon** : la cohérence avec la promesse produit est aussi importante que la correction technique. Si on dit "éphémère", chaque coin de l'app doit l'être.
+
+---
+
+## Lot J — CSP : le portier qui interdit aux inconnus d'apporter à manger
+
+**Analogie**
+La maison (l'app) a un portier qui dit aux livreurs : "voici la liste des fournisseurs autorisés. Toute personne qui prétend livrer un script ou une image mais qui n'est pas sur la liste, tu refuses". Même si un cambrioleur arrive à se déguiser en livreur, le portier le bloque à la porte.
+
+**Code**
+[apps/frontend/svelte.config.js](../apps/frontend/svelte.config.js)
+```ts
+csp: {
+  mode: 'auto',
+  directives: {
+    'default-src':  ["'self'"],                                                  // rien d'externe par défaut
+    'script-src':   ["'self'"],                                                  // scripts uniquement de notre origine (+ hash auto SvelteKit)
+    'style-src':    ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'], // CSS Google Fonts autorisé
+    'font-src':     ["'self'", 'https://fonts.gstatic.com'],                     // fichiers fonts
+    'img-src':      ["'self'", 'data:', 'blob:'],                                // SVG inline + previews
+    'connect-src':  ["'self'", 'wss:', 'ws:', 'https:'],                         // Socket.io
+    'object-src':   ["'none'"],                                                  // pas de <object>, <embed>
+    'base-uri':     ["'self'"],                                                  // pas de redirect via <base>
+    'frame-ancestors': ["'none'"],                                               // anti-clickjacking (HTTP header en prod)
+  },
+},
+```
+
+**Concept**
+*Content Security Policy*. Ce n'est pas une protection active : c'est une **liste blanche** envoyée au navigateur. Le navigateur refuse tout ce qui n'est pas dessus.
+
+**Pourquoi c'est important**
+Si demain un développeur introduit accidentellement une faille XSS (ex: oubli d'échapper un input), le navigateur refusera quand même d'exécuter le script injecté parce qu'il ne vient pas d'une source autorisée. La CSP est le **filet de dernière instance**.
+
+**Note**
+`frame-ancestors` (anti-clickjacking) doit être envoyé comme **header HTTP**, pas via meta tag (limitation du standard). Sera config côté Vercel/Nginx en prod.
+
+**Leçon** : la sécurité moderne = couches. Échapper les inputs (Svelte le fait), valider (Fix #9), ET avoir une CSP au cas où une couche a un trou.
+
+---
+
 # Méta-leçons de la session
 
 1. **Audit = re-lire, pas survoler.** J'ai signalé #6 comme bug, c'était faux. Toujours valider l'ordre des opérations en relisant.
