@@ -59,6 +59,12 @@ function loadOrCreateIdentity(): UserIdentity {
 
 export const localIdentity = loadOrCreateIdentity();
 
+/* ── Size caps (Fix #4 — DoS protection on incoming updates) ─── */
+
+const MAX_YJS_UPDATE_BYTES      = 256 * 1024;  // 256 KB per Y.js update
+const MAX_YJS_STATE_BYTES       = 2 * 1024 * 1024;  // 2 MB for initial doc snapshot
+const MAX_AWARENESS_UPDATE_BYTES = 16 * 1024;  // 16 KB per awareness update
+
 /* ── Bundle factory ─────────────────────────────────────── */
 
 export function createRoomDoc(socket: Socket, roomId: string): YDocBundle {
@@ -82,15 +88,23 @@ export function createRoomDoc(socket: Socket, roomId: string): YDocBundle {
   // 1) Request initial state from server
   socket.emit('yjs:state', { roomId, sv: Y.encodeStateVector(doc) });
 
-  // 2) Apply remote doc updates
+  // 2) Apply remote doc updates (with size cap — Fix #4)
   const onUpdate = (msg: { roomId: string; update: ArrayBuffer | Uint8Array }) => {
     if (msg.roomId !== roomId) return;
     const u8 = msg.update instanceof Uint8Array ? msg.update : new Uint8Array(msg.update);
+    if (u8.byteLength > MAX_YJS_UPDATE_BYTES) {
+      console.warn(`[yjs] update dropped (${u8.byteLength} > ${MAX_YJS_UPDATE_BYTES} bytes)`);
+      return;
+    }
     Y.applyUpdate(doc, u8, 'remote');
   };
   const onState = (msg: { roomId: string; doc: ArrayBuffer | Uint8Array }) => {
     if (msg.roomId !== roomId) return;
     const u8 = msg.doc instanceof Uint8Array ? msg.doc : new Uint8Array(msg.doc);
+    if (u8.byteLength > MAX_YJS_STATE_BYTES) {
+      console.warn(`[yjs] state dropped (${u8.byteLength} > ${MAX_YJS_STATE_BYTES} bytes)`);
+      return;
+    }
     Y.applyUpdate(doc, u8, 'remote');
   };
 
@@ -104,10 +118,14 @@ export function createRoomDoc(socket: Socket, roomId: string): YDocBundle {
   };
   doc.on('update', onLocal);
 
-  // 4) Awareness transport
+  // 4) Awareness transport (with size cap — Fix #4)
   const onAwarenessRemote = (msg: { roomId: string; update: ArrayBuffer | Uint8Array }) => {
     if (msg.roomId !== roomId) return;
     const u8 = msg.update instanceof Uint8Array ? msg.update : new Uint8Array(msg.update);
+    if (u8.byteLength > MAX_AWARENESS_UPDATE_BYTES) {
+      console.warn(`[awareness] update dropped (${u8.byteLength} > ${MAX_AWARENESS_UPDATE_BYTES} bytes)`);
+      return;
+    }
     applyAwarenessUpdate(awareness, u8, 'remote');
   };
   socket.on('awareness:update', onAwarenessRemote);

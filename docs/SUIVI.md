@@ -10,7 +10,7 @@
 |---|---|---|---|
 | Design system (collab.css) | ✅ Stable | 100 | 4 palettes A/B/C/D × clair/sombre, tokens, animations |
 | Maquettes statiques | ✅ Stable | 100 | index.html · Landing.html · Room.html avec annotations |
-| Frontend SvelteKit | 🟡 En cours | 92 | Lots A+B+F+C livrés. Bugs #7-#10 fixés. NotesModule → CodeMirror 6 + curseurs multi-user (y-codemirror.next + awareness). Manque Lots D/G/E/H/I/J/K |
+| Frontend SvelteKit | 🟡 En cours | 94 | Lots A+B+F+C livrés. Bugs #7-#10 + audit #1-#4 fixés. CodeMirror 6 + curseurs multi-user. Manque Lots D/G/E/H/I/J/K |
 | Backend Fastify | 🔴 À démarrer | 10 | Seul `plugins/yjs.ts` rédigé — squelette serveur attendu |
 | Déploiement | 🔴 À démarrer | 0 | Vercel front + Cloudflare Tunnel back à configurer |
 | Tests | 🔴 À démarrer | 0 | Aucun test écrit |
@@ -356,6 +356,19 @@ Si dépassé → build échoue.
 ---
 
 ## Journal de session
+
+### Session 2026-06-13 (fin) — Audit /find-bugs + fixes #1-#4 + export Kairos
+**Durée** ~40 min · **Tokens** ~60k
+- Audit /find-bugs complet (11 findings catégorisés Critical → Info)
+- Fix #1 : bloc `TEMPORARY: simulate connection` retiré de room/[id]/+page.svelte (admin client-side leak)
+- Fix #2 : `isValidRoomCode(roomId)` validé à mount, redirect '/' si invalide (defense in depth)
+- Fix #3 : verrou `let flushing = false` dans outboxFlush (race condition online + onMount)
+- Fix #4 : cap taille update Y.js (256KB) + state (2MB) + awareness (16KB) — DoS protection
+- Export Kairos `docs/kairos/KAIROS-SESSION-2026-06-13.md` (11 bugs analogies Feynman)
+- Memory : préférence style pédagogique sauvegardée
+- Bugs restants (low priority) : #5 leak IDB connexions, #7 mobile lifecycle pagehide, #8 fallback identité, #9 validation couleur peer, #10 TTL outbox, #11 CSP (Lot J planifié)
+- 0 erreurs TypeScript
+- **Prochaine session** : choisir Lot J (security CSP) / Lot D (page host Tauri) / Lot H (animations Lottie)
 
 ### Session 2026-06-13 (suite) — CodeMirror 6 + curseurs multi-user
 **Durée** ~25 min · **Tokens** ~30k

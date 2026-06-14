@@ -6,6 +6,7 @@
 
   import { getSocket, disconnectSocket } from '$lib/socket';
   import { createRoomDoc, type YDocBundle } from '$lib/yjs';
+  import { isValidRoomCode } from '$lib/api/room';
 
   import {
     activeModule, participants, isAdmin, status,
@@ -70,13 +71,6 @@
 
     /* Connect + join */
     s.emit('join:room', { roomId });
-
-    // TEMPORARY: simulate connection so we can preview the UI without the backend
-    setTimeout(() => {
-      status.set('joined');
-      participants.set(1);
-      isAdmin.set(true);
-    }, 600);
   }
 
   function closeRoom() {
@@ -93,12 +87,20 @@
    *  Lifecycle
    * ───────────────────────────────────────────────────── */
   onMount(async () => {
+    // Fix #2: validate roomId shape before doing anything — avoid garbage in IDB/URL/sockets
+    if (!isValidRoomCode(roomId)) {
+      pushToast('Code room invalide', 'info', 3000);
+      goto('/');
+      return;
+    }
+
     wire();
     countdownTimer = setInterval(() => {
       expiresInSec.update((s) => Math.max(0, s - 1));
     }, 1000);
 
     // Register outbox flush — fires automatically when network comes back online
+    // Fix #3 race: the lock is inside outboxFlush itself
     registerOutboxFlush(async () => {
       const n = await outboxFlush(getSocket());
       if (n > 0) pushToast(`${n} action${n > 1 ? 's' : ''} synchronisée${n > 1 ? 's' : ''} après retour réseau`, 'success');

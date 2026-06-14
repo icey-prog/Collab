@@ -76,26 +76,37 @@ async function outboxRemove(id: string): Promise<void> {
 /**
  * Flush all pending outbox actions over the socket.
  * Call when network comes back online.
+ *
+ * Fix #3: in-memory lock prevents two parallel flushes (online event + onMount race)
+ * from emitting each queued action twice.
  */
+let flushing = false;
+
 export async function outboxFlush(socket: Socket): Promise<number> {
-  const items = await outboxGetAll();
-  let flushed = 0;
-  for (const item of items) {
-    try {
-      if (item.type === 'qa:add') {
-        socket.emit('qa:add', {
-          ...item.payload,
-          offline_created_at: item.createdAt,
-          roomId: item.roomId,
-        });
+  if (flushing) return 0;
+  flushing = true;
+  try {
+    const items = await outboxGetAll();
+    let flushed = 0;
+    for (const item of items) {
+      try {
+        if (item.type === 'qa:add') {
+          socket.emit('qa:add', {
+            ...item.payload,
+            offline_created_at: item.createdAt,
+            roomId: item.roomId,
+          });
+        }
+        await outboxRemove(item.id);
+        flushed++;
+      } catch {
+        // leave in queue — retry next flush
       }
-      await outboxRemove(item.id);
-      flushed++;
-    } catch {
-      // leave in queue — retry next flush
     }
+    return flushed;
+  } finally {
+    flushing = false;
   }
-  return flushed;
 }
 
 export async function outboxCount(): Promise<number> {
