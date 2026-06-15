@@ -92,7 +92,12 @@
     </div>
   </main>
 
-  <footer class="foot mono">EXXOLAB · Ouagadougou · 2026 — <a href="/">Accueil</a></footer>
+  <footer class="foot mono">
+    EXXOLAB · Ouagadougou · 2026 —
+    <a href="/">Accueil</a> ·
+    <a href="/legal">Mentions légales</a> ·
+    <a href="/privacy">Confidentialité</a>
+  </footer>
 </div>
 
 <style>

@@ -743,6 +743,94 @@ On ne supprime pas tout — on réduit à 0.01ms (= instantané mais le code mar
 
 ---
 
+# Annexe 4 — Lot E (pages /legal /privacy /admin/stats)
+
+## Concept clé — Mentions légales : ce que la loi attend vs ce qu'on en fait
+
+**Analogie**
+Une boutique a l'obligation d'afficher la licence du commerce, le nom du gérant, l'adresse, et un numéro de téléphone. **Personne ne lit cette pancarte**. Mais sans elle, la mairie peut fermer la boutique. C'est pareil avec une page `/legal` : c'est une **carte d'identité légale**, pas du marketing.
+
+**Au Burkina Faso, le cadre est** :
+- Loi n°010-2004/AN — protection des données personnelles
+- Loi n°045-2009/AN — services et transactions électroniques
+
+**Contenu obligatoire**
+1. Éditeur (qui ? raison sociale + représentant)
+2. Hébergeur (où vivent les serveurs ?)
+3. Propriété intellectuelle
+4. Responsabilité (limites)
+5. Juridiction compétente
+
+**Code**
+[apps/frontend/src/routes/legal/+page.svelte](../apps/frontend/src/routes/legal/+page.svelte)
+
+**Concept**
+*Compliance ≠ politique de bonne pratique*. La loi exige un contenu MINIMUM, pas un contenu BIEN. La différence avec /privacy ci-dessous, qui essaie d'être honnête.
+
+---
+
+## Confidentialité honnête vs RGPD copier-coller
+
+**Analogie**
+La plupart des sites copient une page RGPD générique de 8000 mots que personne ne lit. Notre approche : **on dit en 5 lignes ce qu'on fait vraiment**, puis on liste ce qu'on ne fait PAS (anti-features).
+
+**Pattern TL;DR cards**
+```
+[TTL]      [Compte]        [Tracker]   [Cookie]
+4h max     Aucun. Jamais.  Zéro        1 seul, fonctionnel
+```
+4 chips colorés au-dessus du contenu détaillé. L'utilisateur lit 5 secondes, comprend tout, et passe.
+
+**Code structure**
+[apps/frontend/src/routes/privacy/+page.svelte](../apps/frontend/src/routes/privacy/+page.svelte)
+- §01 Tableau "Ce qu'on garde" : 6 lignes (donnée / stockage / TTL)
+- §02 Liste "Ce qu'on NE collecte PAS" : 6 anti-features avec ✗ rouge
+- §03 Cookie unique (justification ePrivacy art.5 §3 : strictement nécessaire = pas de bandeau)
+- §04 Droits (RGPD + BF) avec aveu : "On n'a rien sur vous"
+- §05 Versionning + date
+
+**Concept**
+*Privacy by architecture vs privacy by promise*. Plutôt que promettre "on protège vos données", on architecture le système pour qu'**il n'y ait rien à protéger** (TTL 4h, RAM only, pas de PII). La preuve est dans le code, pas dans le marketing.
+
+**Leçon**
+Quand un user lit une page privacy de 50 lignes au lieu de 5000, il a plus de chance d'en croire le contenu.
+
+---
+
+## Dashboard admin temps réel : KPI + santé
+
+**Analogie**
+Le cockpit d'un avion. 4 cadrans principaux (vitesse, altitude, carburant, cap). En dessous, des jauges techniques (oil pressure, hydraulique). Le pilote regarde les 4 du haut en permanence, descend sur les détails seulement si quelque chose cloche.
+
+**Code**
+[apps/frontend/src/routes/admin/stats/+page.svelte](../apps/frontend/src/routes/admin/stats/+page.svelte)
+
+**Architecture**
+- 4 KPI cards en grid (rooms actives / participants / fichiers / questions Q&A)
+- Section "Santé système" : uptime, mémoire Redis, refresh auto
+- Refresh auto `setInterval(fetchStats, 10_000)` cleanup `onDestroy`
+- Gestion 401/403 → panel jaune "accès admin requis"
+- Gestion erreur réseau → panel rouge + bouton "Réessayer"
+- Tag "Actualisé il y a 3s" avec dot vert pulsant si OK
+
+**Concept clé — fetchState machine**
+```ts
+type FetchState = 'loading' | 'ok' | 'unauthorized' | 'error';
+let state: FetchState = 'loading';
+```
+Plutôt qu'un boolean `loading + error`, on a un seul state qui peut être dans 4 cas mutuellement exclusifs. Beaucoup plus simple à gérer dans le template :
+```svelte
+{#if state === 'unauthorized'} ... {:else if state === 'error'} ... {:else} ... {/if}
+```
+
+**Concept**
+*Discriminated union / state machine*. Pattern TypeScript fréquent. Évite les états impossibles (loading=true ET error=true).
+
+**Leçon**
+Trois booleans `loading`, `error`, `success` peuvent créer 8 combinaisons dont 5 invalides. Un seul `state` typé crée exactement les N combinaisons possibles. Toujours préférer.
+
+---
+
 # Méta-leçons de la session
 
 1. **Audit = re-lire, pas survoler.** J'ai signalé #6 comme bug, c'était faux. Toujours valider l'ordre des opérations en relisant.

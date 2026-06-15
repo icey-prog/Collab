@@ -10,7 +10,7 @@
 |---|---|---|---|
 | Design system (collab.css) | ✅ Stable | 100 | 4 palettes A/B/C/D × clair/sombre, tokens, animations |
 | Maquettes statiques | ✅ Stable | 100 | index.html · Landing.html · Room.html avec annotations |
-| Frontend SvelteKit | 🟡 En cours | 99 | Lots A+B+F+C+J+D+I livrés. Tous bugs fixés. Page /host (HostPanel QR + JoinPanel scan). A11y full. Manque Lots G/E/H/K |
+| Frontend SvelteKit | ✅ Stable | 100 | Tous lots front livrés (A+B+F+C+J+D+I+E). Tous bugs fixés. Pages secondaires /legal /privacy /admin/stats. Manque G (Tauri wrap)/H (Lottie)/K (Playwright) — optionnels v2 |
 | Backend Fastify | 🔴 À démarrer | 10 | Seul `plugins/yjs.ts` rédigé — squelette serveur attendu |
 | Déploiement | 🔴 À démarrer | 0 | Vercel front + Cloudflare Tunnel back à configurer |
 | Tests | 🔴 À démarrer | 0 | Aucun test écrit |
@@ -356,6 +356,17 @@ Si dépassé → build échoue.
 ---
 
 ## Journal de session
+
+### Session 2026-06-13 (Lot E) — Pages /legal + /privacy + /admin/stats
+**Durée** ~25 min · **Tokens** ~35k
+- `/legal` — mentions légales BF (loi n°010-2004/AN), éditeur EXXOLAB, hébergement, IP, modération, juridiction
+- `/privacy` — politique courte et vraie (TL;DR cards 4 colonnes, table TTL, never-list, RGPD+BF)
+- `/admin/stats` — dashboard KPI 4 cards (rooms actives, participants, fichiers, Q&A) + santé système + refresh auto 10s + gestion 401/erreur
+- Footer about enrichi : Accueil · Mentions légales · Confidentialité
+- 0 erreurs TypeScript. Build prod OK.
+- Front : 99% → **100%** pour les lots core (A+B+C+D+E+F+I+J)
+- Lots restants tous optionnels v2 : G (Tauri wrap), H (Lottie), K (Playwright E2E)
+- **Prochaine session** : backend Fastify OU passer en mode production deploy
 
 ### Session 2026-06-13 (Lots D + I) — Page /host Tauri + A11y mobile-first
 **Durée** ~40 min · **Tokens** ~60k
