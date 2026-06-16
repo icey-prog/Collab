@@ -181,6 +181,30 @@ app.get<{ Params: { id: string; key: string } }>('/room/:id/file/:key', async (r
   return reply.send(createReadStream(fullPath));
 });
 
+/* GET /admin/rooms — list all active rooms (codes visibles pour MVP local) */
+app.get('/admin/rooms', async (req) => {
+  const now = Date.now();
+  const cookieVal = req.cookies['collab_admin'] ?? '';
+  const [cookieRoom, cookieToken] = cookieVal.split(':');
+
+  const list = [...rooms.values()]
+    .filter(r => r.expiresAt > now)
+    .map(r => ({
+      id:             r.id,
+      createdAt:      r.createdAt,
+      expiresInSec:   Math.max(0, Math.round((r.expiresAt - now) / 1000)),
+      participants:   r.participants.size,
+      full:           r.participants.size >= MAX_PARTICIPANTS,
+      questions:      r.questions.length,
+      files:          publicFiles(r).length,
+      hasAdmin:       cookieRoom === r.id && cookieToken === r.adminToken,
+      docTextLength:  r.doc.getText('notes').toString().length,
+    }))
+    .sort((a, b) => b.createdAt - a.createdAt);
+
+  return { rooms: list, total: list.length };
+});
+
 /* GET /admin/stats */
 app.get('/admin/stats', async (req) => {
   let participants_total = 0, files_count = 0, files_size = 0, qa_total = 0;

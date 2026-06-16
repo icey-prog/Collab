@@ -13,31 +13,73 @@
     redis_memory_mb:    number;
     socket_connections: number;
   }
+  interface RoomItem {
+    id: string;
+    createdAt: number;
+    expiresInSec: number;
+    participants: number;
+    full: boolean;
+    questions: number;
+    files: number;
+    hasAdmin: boolean;
+    docTextLength: number;
+  }
 
   type FetchState = 'loading' | 'ok' | 'unauthorized' | 'error';
 
   let stats: AdminStats | null = null;
+  let roomList: RoomItem[] = [];
   let state: FetchState = 'loading';
   let lastFetch = 0;
   let timer: ReturnType<typeof setInterval> | null = null;
+  let copiedRoom: string | null = null;
 
   async function fetchStats() {
     try {
-      const res = await fetch('/api/admin/stats', { credentials: 'include' });
-      if (res.status === 401 || res.status === 403) {
-        state = 'unauthorized';
-        return;
-      }
-      if (!res.ok) {
-        state = 'error';
-        return;
-      }
-      stats = (await res.json()) as AdminStats;
+      const [statsRes, roomsRes] = await Promise.all([
+        fetch('/api/admin/stats', { credentials: 'include' }),
+        fetch('/api/admin/rooms', { credentials: 'include' }),
+      ]);
+      if (statsRes.status === 401 || statsRes.status === 403) { state = 'unauthorized'; return; }
+      if (!statsRes.ok || !roomsRes.ok) { state = 'error'; return; }
+      stats    = (await statsRes.json()) as AdminStats;
+      roomList = ((await roomsRes.json()) as { rooms: RoomItem[] }).rooms;
       lastFetch = Date.now();
       state = 'ok';
     } catch {
       state = 'error';
     }
+  }
+
+  async function copyRoomCode(id: string) {
+    try {
+      await navigator.clipboard.writeText(id);
+      copiedRoom = id;
+      setTimeout(() => { if (copiedRoom === id) copiedRoom = null; }, 1500);
+    } catch { /* clipboard denied */ }
+  }
+
+  async function closeRoom(id: string) {
+    if (!confirm(`Clore définitivement la room ${id} ?`)) return;
+    try {
+      const res = await fetch(`/api/room/${id}`, { method: 'DELETE', credentials: 'include' });
+      if (res.ok) { roomList = roomList.filter(r => r.id !== id); fetchStats(); }
+      else alert('Échec : pas admin ou room introuvable');
+    } catch { alert('Erreur réseau'); }
+  }
+
+  function fmtExpires(s: number): string {
+    if (s <= 0) return 'expiré';
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    if (h > 0) return `${h}h ${m}min`;
+    return `${m}min`;
+  }
+  function fmtAgo(ts: number): string {
+    const s = Math.round((Date.now() - ts) / 1000);
+    if (s < 60) return `${s}s`;
+    if (s < 3600) return `${Math.floor(s / 60)}min`;
+    return `${Math.floor(s / 3600)}h`;
   }
 
   function fmtBytes(b: number): string {
@@ -124,6 +166,63 @@
           {#if stats}<div class="kpi-sub">toutes rooms</div>{/if}
         </div>
       </div>
+
+
+        <!-- ───────────── Active rooms table ──────────── -->
+      <section class="rooms-section">
+        <h2><span class="num">·</span> Rooms actives <span class="count">{roomList.length}</span></h2>
+
+        {#if roomList.length === 0}
+          <div class="empty">Aucune room active. Crée-en une depuis l'<a href="/">accueil</a>.</div>
+        {:else}
+          <div class="rooms-table">
+            <div class="rh">
+              <div>Code</div>
+              <div>Créée</div>
+              <div>Expire</div>
+              <div class="num-col">Part.</div>
+              <div class="num-col">Q&amp;A</div>
+              <div class="num-col">Fich.</div>
+              <div class="num-col">Notes</div>
+              <div>Rôle</div>
+              <div class="act-col">Actions</div>
+            </div>
+            {#each roomList as r (r.id)}
+              <div class="rrow" class:full={r.full}>
+                <div class="code-cell">
+                  <button class="code-chip" on:click={() => copyRoomCode(r.id)} title="Cliquer pour copier">
+                    {r.id}
+                    {#if copiedRoom === r.id}
+                      <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
+                        <path d="M3.5 8.5l3 3 6-6.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                      </svg>
+                    {/if}
+                  </button>
+                </div>
+                <div class="mono">il y a {fmtAgo(r.createdAt)}</div>
+                <div class="mono">{fmtExpires(r.expiresInSec)}</div>
+                <div class="num-col">{r.participants}/50</div>
+                <div class="num-col">{r.questions}</div>
+                <div class="num-col">{r.files}</div>
+                <div class="num-col mono small">{r.docTextLength}c</div>
+                <div>
+                  {#if r.hasAdmin}
+                    <span class="badge admin">ADMIN</span>
+                  {:else}
+                    <span class="badge guest">–</span>
+                  {/if}
+                </div>
+                <div class="act-col">
+                  <a class="act-btn" href="/room/{r.id}" target="_blank" rel="noopener" title="Ouvrir la room">↗</a>
+                  {#if r.hasAdmin}
+                    <button class="act-btn danger" on:click={() => closeRoom(r.id)} title="Clore la room">×</button>
+                  {/if}
+                </div>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </section>
 
       <!-- System health -->
       <section class="health">
@@ -212,6 +311,82 @@
   .kpi-sub {
     font-family: var(--font-mono); font-size: 11.5px;
     color: var(--navy-40); margin-top: 2px;
+  }
+
+  /* Active rooms section */
+  .rooms-section { padding: 24px 0 8px; border-top: 1px solid var(--navy-08); margin-bottom: 8px; }
+  .count {
+    font-family: var(--font-mono); font-size: 12px; font-weight: 600;
+    background: var(--navy); color: var(--paper);
+    padding: 2px 8px; border-radius: var(--r-pill); margin-left: 8px;
+  }
+  .empty {
+    padding: 20px; background: var(--navy-04); border-radius: var(--r-md);
+    color: var(--navy-50); font-size: 14px; text-align: center;
+  }
+  .empty a { color: var(--navy); }
+
+  .rooms-table {
+    display: flex; flex-direction: column;
+    background: var(--surface); border-radius: var(--r-md);
+    overflow: hidden;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+  }
+  .rh, .rrow {
+    display: grid;
+    grid-template-columns: 110px 100px 90px 70px 60px 60px 70px 70px 90px;
+    gap: 12px; padding: 10px 14px; align-items: center;
+    font-size: 13px;
+  }
+  .rh {
+    background: var(--surface-cream-strong);
+    font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+    color: var(--navy-50); letter-spacing: 0.06em; text-transform: uppercase;
+  }
+  .rrow { border-top: 1px solid var(--navy-06); }
+  .rrow:hover { background: var(--navy-04); }
+  .rrow.full { background: rgba(244,232,168,0.20); }
+  .num-col { text-align: right; font-family: var(--font-mono); font-size: 12.5px; color: var(--navy-70); }
+  .small { font-size: 11px; color: var(--navy-50); }
+  .mono { font-family: var(--font-mono); font-size: 12px; color: var(--navy-60); }
+
+  .code-cell { display: flex; }
+  .code-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--font-mono); font-size: 13.5px; font-weight: 600;
+    background: var(--chartreuse); color: var(--accent-ink);
+    border: none; cursor: pointer;
+    padding: 5px 10px; border-radius: var(--r-pill);
+    letter-spacing: 0.06em;
+    transition: transform .12s ease;
+  }
+  .code-chip:hover { transform: translateY(-1px); }
+
+  .badge {
+    font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+    padding: 2px 8px; border-radius: var(--r-pill);
+    letter-spacing: 0.04em;
+  }
+  .badge.admin { background: var(--navy); color: var(--paper); }
+  .badge.guest { background: var(--navy-08); color: var(--navy-40); }
+
+  .act-col { display: flex; gap: 4px; justify-content: flex-end; }
+  .act-btn {
+    width: 28px; height: 28px; border-radius: 6px;
+    border: none; background: var(--navy-06); color: var(--navy-60);
+    cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
+    text-decoration: none; font-size: 14px;
+    transition: background .15s, color .15s;
+  }
+  .act-btn:hover { background: var(--navy-12); color: var(--navy); }
+  .act-btn.danger { background: transparent; color: var(--navy-40); font-size: 18px; }
+  .act-btn.danger:hover { background: rgba(244,168,168,0.25); color: #B05656; }
+
+  @media (max-width: 900px) {
+    .rh, .rrow { grid-template-columns: 90px 1fr 70px 80px; }
+    .rh > div:nth-child(n+5), .rrow > div:nth-child(n+5) { display: none; }
+    .rrow > .act-col { display: flex; }
+    .rh > div:nth-child(9), .rrow > .act-col { display: flex; grid-column: 4; }
   }
 
   /* Health section */
