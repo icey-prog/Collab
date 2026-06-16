@@ -11,7 +11,7 @@
 | Design system (collab.css) | ✅ Stable | 100 | 4 palettes A/B/C/D × clair/sombre, tokens, animations |
 | Maquettes statiques | ✅ Stable | 100 | index.html · Landing.html · Room.html avec annotations |
 | Frontend SvelteKit | ✅ Stable | 100 | Tous lots front livrés (A+B+F+C+J+D+I+E). Tous bugs fixés. Pages secondaires /legal /privacy /admin/stats. Manque G (Tauri wrap)/H (Lottie)/K (Playwright) — optionnels v2 |
-| Backend Fastify | 🔴 À démarrer | 10 | Seul `plugins/yjs.ts` rédigé — squelette serveur attendu |
+| Backend Fastify | 🟡 MVP local | 70 | Single-file server.ts in-memory : create/preview/delete room, upload, Y.js relay + awareness, Q&A, admin/stats. Manque Redis/R2/JWT pour prod |
 | Déploiement | 🔴 À démarrer | 0 | Vercel front + Cloudflare Tunnel back à configurer |
 | Tests | 🔴 À démarrer | 0 | Aucun test écrit |
 
@@ -356,6 +356,18 @@ Si dépassé → build échoue.
 ---
 
 ## Journal de session
+
+### Session 2026-06-16 — Backend Fastify MVP single-file (test rapide)
+**Durée** ~20 min · **Tokens** ~30k
+- `apps/backend/server.ts` single-file, in-memory (rooms Map, no Redis)
+- Routes HTTP : POST /room/create (+ cookie httpOnly admin), GET /room/:id/preview, DELETE /room/:id, POST /room/:id/upload (multipart, max 10MB), GET /room/:id/file/:key, GET /admin/stats
+- Socket.io : join:room avec détection admin via cookie, Y.js relay (state/sync/update + cap 256KB), awareness:update (cap 16KB), qa:add/vote/delete (idempotence vote via SHA256 socket.id), file:delete admin-only
+- TTL rooms 4h + TTL fichiers 24h + janitor 60s
+- CORS allow http://localhost:5173 + credentials
+- Stockage fichiers : data/uploads/ local (purgé au destroyRoom)
+- Smoke test OK : POST create → 6-char roomId + cookie collab_admin, GET preview retourne stats, GET admin/stats répond avec heapUsed mémoire
+- Mock simulate connection toujours retiré côté front (commit antérieur)
+- **Prochaine session** : test 2 onglets multi-user real, durcissement Redis/R2/JWT pour prod, deploy Vercel + Contabo
 
 ### Session 2026-06-13 (Lot E) — Pages /legal + /privacy + /admin/stats
 **Durée** ~25 min · **Tokens** ~35k
