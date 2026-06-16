@@ -10,8 +10,9 @@
   import NetworkBadge from './NetworkBadge.svelte';
   import { mode, toggleMode } from '$lib/stores/theme';
 
-  export let roomId: string;
+  export const roomId: string = '';   // injecté par parent mais pas consommé dans cette vue
   export let onClose: () => void;
+  void roomId;
 
   let copied = false;
   const setMod = (m: Module) => activeModule.set(m);
@@ -304,22 +305,6 @@
     to { opacity: 1; transform: scale(1); }
   }
   :global(body.theme-dark) .hero-gif { mix-blend-mode: normal; }
-  .hero-tagline {
-    margin-top: 6px;
-    display: flex; flex-direction: column;
-    font-family: var(--font-head);
-    line-height: 1.1;
-  }
-  .hero-line1 {
-    font-size: 11px; font-weight: 500;
-    color: var(--navy-55);
-    letter-spacing: 0.04em;
-  }
-  .hero-line2 {
-    font-size: 13px; font-weight: 700;
-    color: var(--navy);
-    letter-spacing: -0.01em;
-  }
 
   /* nav (Premium pill pattern) */
   .sb-nav {
