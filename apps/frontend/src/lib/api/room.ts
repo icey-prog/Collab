@@ -16,7 +16,8 @@ export async function createRoom(): Promise<CreateRoomResponse> {
   const res = await fetch('/api/room/create', {
     method: 'POST',
     credentials: 'include',     // admin cookie httpOnly
-    headers: { 'Content-Type': 'application/json' }
+    // pas de Content-Type ni body : route POST sans payload
+    // (Fastify 4 rejette en 400 si Content-Type:application/json et body vide)
   });
 
   if (!res.ok) {

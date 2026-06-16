@@ -95,6 +95,14 @@ function publicFiles(r: RoomConfig): FileMeta[] {
 /* ─── Fastify ─── */
 
 const app = Fastify({ logger: true, bodyLimit: 12 * 1024 * 1024 });
+
+// Tolérance body vide sur POST sans payload (front utilise fetch sans body)
+app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
+  const s = (body as string).trim();
+  if (s === '') return done(null, {});
+  try { done(null, JSON.parse(s)); } catch (err) { done(err as Error); }
+});
+
 await app.register(cors, { origin: FRONT_ORIGIN, credentials: true });
 await app.register(cookie);
 await app.register(multipart, { limits: { fileSize: MAX_FILE_BYTES } });
