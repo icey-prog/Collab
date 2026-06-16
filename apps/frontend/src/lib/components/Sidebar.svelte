@@ -168,7 +168,7 @@
             </svg>
           </span>
           <span class="txt">Participants</span>
-          <span class="meta">{$participants} / 50</span>
+          <span class="meta">{$participants} / 4</span>
         </div>
         <div class="nav-item static">
           <span class="ico">

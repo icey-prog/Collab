@@ -38,7 +38,17 @@ const UPLOAD_DIR = join(DATA_DIR, 'uploads');
 mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const PORT = Number(process.env.PORT ?? 3001);
-const FRONT_ORIGIN = process.env.FRONT_ORIGIN ?? 'http://localhost:5173';
+
+// CORS LAN-friendly : localhost + 192.168.* + 10.* + 172.16-31.* + ENV override
+// (déploiement cloud : exporter FRONT_ORIGIN=https://collab.exxolab.bf)
+const ENV_ORIGIN = process.env.FRONT_ORIGIN; // ex: 'https://collab.exxolab.bf'
+const LAN_RE = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+)(?::\d+)?$/;
+function corsOriginCheck(origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) {
+  if (!origin) return cb(null, true);                       // curl / same-origin
+  if (ENV_ORIGIN && origin === ENV_ORIGIN) return cb(null, true);
+  if (LAN_RE.test(origin)) return cb(null, true);
+  return cb(null, false);
+}
 
 /* ─── Types & in-memory state ─── */
 
@@ -58,7 +68,7 @@ interface FileMeta { key: string; name: string; size: number; url: string; expir
 const rooms = new Map<string, RoomConfig>();
 const ROOM_TTL_MS = 4 * 60 * 60 * 1000;       // 4h
 const FILE_TTL_MS = 24 * 60 * 60 * 1000;      // 24h
-const MAX_PARTICIPANTS = 50;
+const MAX_PARTICIPANTS = 4;                  // MVP : petites sessions LAN/Cloud (3-4)
 const MAX_FILE_BYTES = 10 * 1024 * 1024;      // 10 MB
 const MAX_YJS_UPDATE = 256 * 1024;            // 256 KB defense
 const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -103,7 +113,7 @@ app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body,
   try { done(null, JSON.parse(s)); } catch (err) { done(err as Error); }
 });
 
-await app.register(cors, { origin: FRONT_ORIGIN, credentials: true });
+await app.register(cors, { origin: corsOriginCheck, credentials: true });
 await app.register(cookie);
 await app.register(multipart, { limits: { fileSize: MAX_FILE_BYTES } });
 await app.register(staticPlugin, { root: UPLOAD_DIR, prefix: '/files/', decorateReply: false });
@@ -243,7 +253,7 @@ app.get('/', async () => ({ ok: true, service: 'collab-backend', rooms: rooms.si
 
 await app.listen({ port: PORT, host: '0.0.0.0' });
 const io = new IOServer(app.server, {
-  cors: { origin: FRONT_ORIGIN, credentials: true },
+  cors: { origin: corsOriginCheck, credentials: true },
   path: '/socket.io',
 });
 
@@ -367,4 +377,4 @@ setInterval(() => {
   }
 }, 60_000);
 
-console.log(`[collab-backend] http://localhost:${PORT}  |  CORS allow ${FRONT_ORIGIN}`);
+console.log(`[collab-backend] http://localhost:${PORT}  |  CORS: localhost + LAN${ENV_ORIGIN ? ' + ' + ENV_ORIGIN : ''}  |  Max ${MAX_PARTICIPANTS} participants/room`);

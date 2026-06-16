@@ -201,7 +201,7 @@
                 </div>
                 <div class="mono">il y a {fmtAgo(r.createdAt)}</div>
                 <div class="mono">{fmtExpires(r.expiresInSec)}</div>
-                <div class="num-col">{r.participants}/50</div>
+                <div class="num-col">{r.participants}/4</div>
                 <div class="num-col">{r.questions}</div>
                 <div class="num-col">{r.files}</div>
                 <div class="num-col mono small">{r.docTextLength}c</div>

@@ -145,7 +145,7 @@
       <div class="badges">
         <span class="b">Anonyme</span><span class="sepdot">·</span>
         <span class="b">4h TTL</span><span class="sepdot">·</span>
-        <span class="b">50 max</span><span class="sepdot">·</span>
+        <span class="b">4 max</span><span class="sepdot">·</span>
         <span class="b">Zéro compte</span>
       </div>
     </div>

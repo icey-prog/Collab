@@ -189,7 +189,7 @@
         {:else if $status === 'joined'}
           <span class="pill pill-online"><span class="dot"></span>{$participants} en ligne</span>
         {:else if $status === 'full'}
-          <span class="pill pill-error">Room pleine (50/50)</span>
+          <span class="pill pill-error">Room pleine (4/4)</span>
         {:else if $status === 'not_found'}
           <span class="pill pill-error">Room introuvable</span>
         {:else if $status === 'closed'}
@@ -225,7 +225,7 @@
         <span class="sb-item">Y.js CRDT</span>
       </div>
       <div class="sb-right">
-        <span class="sb-item">{$participants}/50 participants</span>
+        <span class="sb-item">{$participants}/4 participants</span>
         <span class="sb-sep"></span>
         <span class="sb-item">expire {$expiresLabel}</span>
       </div>

@@ -71,7 +71,7 @@
             <div class="meta">
               <div class="meta-k">Participants</div>
               <div class="meta-v">
-                {preview.participants} / 50
+                {preview.participants} / 4
                 {#if preview.full}<span class="pill pill-error">complète</span>{/if}
               </div>
             </div>
