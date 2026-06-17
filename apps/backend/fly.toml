@@ -1,0 +1,46 @@
+# Fly.io config for Collab backend.
+#
+# Region : CDG (Paris) — meilleur latence Burkina Faso depuis Europe.
+#                        Change pour 'jnb' (Johannesburg) si dispo dans ton plan.
+#
+# Le nom de l'app sera défini au `fly launch` (ex: collab-back).
+# Une fois déployé, l'URL publique sera : https://<app-name>.fly.dev
+
+app = "collab-back"        # ← sera remplacé par fly launch
+primary_region = "cdg"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  NODE_ENV = "production"
+  PORT     = "3001"
+
+[http_service]
+  internal_port = 3001
+  force_https = true
+  auto_stop_machines  = "stop"   # éco free tier
+  auto_start_machines = true
+  min_machines_running = 0       # passe à 1 pour éviter cold-start
+
+  [http_service.concurrency]
+    type       = "connections"
+    hard_limit = 200
+    soft_limit = 100
+
+  [[http_service.checks]]
+    grace_period  = "10s"
+    interval      = "30s"
+    method        = "GET"
+    timeout       = "5s"
+    path          = "/"
+
+# Persistance fichiers uploadés (24h TTL mais peut survivre redéploiement)
+[[mounts]]
+  source      = "collab_data"
+  destination = "/app/data"
+  initial_size = "1gb"
+
+[[vm]]
+  size      = "shared-cpu-1x"    # free tier = jusqu'à 3 machines
+  memory_mb = 256
