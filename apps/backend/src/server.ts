@@ -279,6 +279,15 @@ io.on('connection', (socket) => {
     socket.emit('qa:updated',    r.questions.map(q => ({ id: q.id, text: q.text, votes: q.votes, createdAt: q.createdAt })));
     socket.emit('files:updated', publicFiles(r));
     io.to(id).emit('participants:count', { count: r.participants.size });
+
+    // Bug fix retardataire : push proactif du snapshot Y.js au socket qui vient de rejoindre.
+    // Sans ça le client doit émettre 'yjs:state' AVANT join:room ce qui crée une race.
+    const snapshot = Y.encodeStateAsUpdate(r.doc);
+    socket.emit('yjs:state', { roomId: id, doc: snapshot });
+
+    // Demande aux autres sockets de la room de re-publier leur awareness state
+    // pour que le retardataire voie les curseurs des autres.
+    socket.to(id).emit('awareness:request-rebroadcast', { roomId: id });
   });
 
   /* Y.js */

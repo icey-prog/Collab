@@ -139,6 +139,15 @@ export function createRoomDoc(socket: Socket, roomId: string): YDocBundle {
   };
   socket.on('awareness:update', onAwarenessRemote);
 
+  // Quand un retardataire join, le serveur nous demande de rebroadcaster notre awareness
+  // (sinon il ne verrait pas notre curseur tant qu'on ne bouge pas la souris).
+  const onAwarenessRequest = (msg: { roomId: string }) => {
+    if (msg.roomId !== roomId) return;
+    const update = encodeAwarenessUpdate(awareness, [doc.clientID]);
+    socket.emit('awareness:update', { roomId, update });
+  };
+  socket.on('awareness:request-rebroadcast', onAwarenessRequest);
+
   const onAwarenessLocal = (
     { added, updated, removed }: { added: number[]; updated: number[]; removed: number[] },
     origin: unknown,
@@ -169,6 +178,7 @@ export function createRoomDoc(socket: Socket, roomId: string): YDocBundle {
       socket.off('yjs:update', onUpdate);
       socket.off('yjs:state',  onState);
       socket.off('awareness:update', onAwarenessRemote);
+      socket.off('awareness:request-rebroadcast', onAwarenessRequest);
       awareness.off('update', onAwarenessLocal);
       if (typeof window !== 'undefined') {
         window.removeEventListener('beforeunload', onUnload);
