@@ -24,6 +24,7 @@
   import ToastStack   from '$lib/components/ToastStack.svelte';
   import Loader       from '$lib/components/Loader.svelte';
   import QRShare      from '$lib/components/QRShare.svelte';
+  import { getSharableBase } from '$lib/utils/lan';
 
   $: roomId = $page.params.id?.toUpperCase() ?? '';
 
@@ -31,10 +32,7 @@
   let countdownTimer: ReturnType<typeof setInterval> | null = null;
   let copied = false;
   let showShare = false;
-
-  $: joinUrl = typeof window !== 'undefined' && roomId
-    ? `${window.location.origin}/room/${roomId}`
-    : '';
+  let joinUrl = '';
 
   function clickOutside(node: HTMLElement, callback: () => void) {
     const handle = (e: MouseEvent) => {
@@ -101,12 +99,15 @@
    *  Lifecycle
    * ───────────────────────────────────────────────────── */
   onMount(async () => {
-    // Fix #2: validate roomId shape before doing anything — avoid garbage in IDB/URL/sockets
     if (!isValidRoomCode(roomId)) {
       pushToast('Code room invalide', 'info', 3000);
       goto('/');
       return;
     }
+
+    // Résoudre l'URL partageable (LAN IP si localhost, sinon origin)
+    const base = await getSharableBase();
+    joinUrl = `${base}/room/${roomId}`;
 
     wire();
     countdownTimer = setInterval(() => {

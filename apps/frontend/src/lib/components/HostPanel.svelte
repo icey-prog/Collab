@@ -4,19 +4,19 @@
   import { createRoom } from '$lib/api/room';
   import { getLocalIp, startBackend, isTauri } from '$lib/tauri';
   import { pushToast } from '$lib/stores/room';
+  import { getSharableBase } from '$lib/utils/lan';
 
   type State = 'idle' | 'starting' | 'ready' | 'error';
 
   let state: State = 'idle';
-  let roomId  = '';
-  let localIp = '';
-  let port    = 3001;          // Fastify backend port (LAN)
-  let qrSvg   = '';
-  let copyOk  = false;
+  let roomId      = '';
+  let localIp     = '';
+  let port        = 3001;
+  let qrSvg       = '';
+  let copyOk      = false;
+  let sharableBase = '';
 
-  $: roomUrl = roomId
-    ? `${isTauri() && localIp ? `http://${localIp}:${port}` : window.location.origin}/room/${roomId}`
-    : '';
+  $: roomUrl = roomId && sharableBase ? `${sharableBase}/room/${roomId}` : '';
 
   async function renderQR() {
     if (!roomUrl) return;
@@ -36,7 +36,7 @@
     if (state === 'starting') return;
     state = 'starting';
     try {
-      // If running inside Tauri, fire up the Docker backend locally
+      // Si Tauri, démarrer le backend local et récupérer l'IP via Rust invoke
       if (isTauri()) {
         const ok = await startBackend();
         if (ok === false) {
@@ -45,8 +45,14 @@
           return;
         }
         const ip = await getLocalIp();
-        if (ip) localIp = ip;
+        if (ip) {
+          localIp = ip;
+          sharableBase = `http://${ip}:${port}`;
+        }
       }
+
+      // Résoudre IP LAN si encore inconnue (mode browser non-Tauri)
+      if (!sharableBase) sharableBase = await getSharableBase();
 
       const res = await createRoom();
       roomId = res.roomId;

@@ -5,6 +5,7 @@
   import { isTauri } from '$lib/tauri';
   import ChromeTR from '$lib/components/ChromeTR.svelte';
   import QRShare from '$lib/components/QRShare.svelte';
+  import { getSharableBase } from '$lib/utils/lan';
 
   // Tauri desktop : auto-redirect vers /host (mode local-first)
   onMount(() => {
@@ -30,7 +31,8 @@
     try {
       const res = await createRoom();
       roomId = res.roomId;
-      roomUrl = `${window.location.origin}/room/${roomId}`;
+      const base = await getSharableBase();
+      roomUrl = `${base}/room/${roomId}`;
       if (navigator.vibrate) navigator.vibrate([20, 30, 20]);  // success pattern
       state = 'created';
     } catch (e) {

@@ -31,6 +31,7 @@ import { mkdirSync, createReadStream, statSync, unlinkSync, existsSync } from 'n
 import { writeFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { networkInterfaces } from 'node:os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, '..', 'data');
@@ -245,6 +246,17 @@ app.get('/admin/stats', async (req) => {
     socket_connections: io.sockets.sockets.size,
   };
 });
+
+/* GET /local-ip — IP LAN de la machine (utile pour QR code sur localhost) */
+function getLanIp(): string | null {
+  for (const nets of Object.values(networkInterfaces())) {
+    for (const addr of (nets ?? [])) {
+      if (addr.family === 'IPv4' && !addr.internal) return addr.address;
+    }
+  }
+  return null;
+}
+app.get('/local-ip', async () => ({ ip: getLanIp() }));
 
 /* GET / — sanity */
 app.get('/', async () => ({ ok: true, service: 'collab-backend', rooms: rooms.size }));
