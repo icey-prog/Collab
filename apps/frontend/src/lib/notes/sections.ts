@@ -26,10 +26,14 @@ import type { DecorationSet, ViewUpdate } from '@codemirror/view';
 
 /* ── Format constants ─────────────────────────────────────── */
 
-export const MARK_OPEN  = '⟨';
-export const MARK_CLOSE = '⟩';
-// Une ligne marqueur est strictement `⟨N⟩` (rien d'autre sur la ligne).
-export const MARK_LINE_RE = /^⟨(\d+)⟩$/;
+// Utilise Unicode Private Use Area — caractères non typables au clavier,
+// rendant l'usurpation de marqueur quasi-impossible (vs ⟨ ⟩ qui sont sur AltGr).
+export const MARK_OPEN  = '';
+export const MARK_CLOSE = '';
+// Une ligne marqueur est strictement OPEN + digits + CLOSE (rien d'autre).
+export const MARK_LINE_RE = new RegExp(`^${MARK_OPEN}(\\d+)${MARK_CLOSE}$`);
+// Détection multi-ligne — utilisée pour sanitization des inserts (paste)
+const MARK_ANYLINE_RE = new RegExp(`(^|\\n)${MARK_OPEN}\\d+${MARK_CLOSE}(\\n|$)`);
 
 export function makeMark(clientId: number): string {
   return `${MARK_OPEN}${clientId}${MARK_CLOSE}`;
@@ -75,10 +79,15 @@ export function parseSections(doc: Text): Section[] {
   return sections;
 }
 
-/** Renvoie la section qui possède la position pos, ou null si zone "no man's land" (avant tout marqueur). */
+/**
+ * Renvoie la section qui possède la position pos, ou null si zone "no man's land".
+ * Parcourt à l'envers : la section qui possède pos est celle avec le plus grand
+ * markFrom inférieur ou égal à pos. Évite l'ambiguïté aux bords entre sections
+ * consécutives (contentTo de N == markFrom de N+1).
+ */
 export function sectionAt(sections: Section[], pos: number): Section | null {
-  for (const s of sections) {
-    if (pos >= s.markFrom && pos <= s.contentTo) return s;
+  for (let i = sections.length - 1; i >= 0; i--) {
+    if (pos >= sections[i].markFrom) return sections[i];
   }
   return null;
 }
@@ -164,18 +173,27 @@ export function sectionDecorations(myClientId: number, resolveAuthor: AuthorReso
 
 /**
  * Règles appliquées :
- * 1. Une modification (insertion ou suppression) dans une section qui n'est pas
- *    la nôtre → REDIRECT : on annule la modif, et on crée une nouvelle section à
- *    la fin du doc avec le texte tapé.
- * 2. Une modification dans une zone sans section (avant tout marqueur) →
- *    on prépend un marqueur ⟨moi⟩ + \n avant le contenu.
- * 3. Une suppression qui touche la ligne MARQUEUR (peu importe l'auteur) →
- *    bloquée (sinon on perd l'ownership).
- * 4. Une modification dans notre propre section → autorisée telle quelle.
+ * 1. Skip transactions remote Y.js (pas de userEvent) — sinon collab cassé.
+ * 2. Suppression touchant la ligne MARQUEUR (même la sienne) → bloquée.
+ * 3. Modification (ins/del) dans une section qui n'est pas la nôtre OU dans
+ *    un no-man's-land → REDIRECT : on annule, on insère le texte tapé à la
+ *    fin du doc dans une nouvelle section à nous (ou append si dernière est
+ *    déjà à nous).
+ * 4. Insert contenant un faux marqueur (paste) → on remplace OPEN/CLOSE
+ *    par un espace pour neutraliser sans perdre le contenu.
+ * 5. Modification dans notre propre section → autorisée.
  */
 export function ownershipFilter(myClientId: number, opts: { onBlocked?: (foreignName: string) => void } = {}) {
   return Prec.highest(EditorState.transactionFilter.of((tr) => {
     if (!tr.docChanged) return tr;
+
+    // Fix #1 — Skip transactions non issues d'une action utilisateur locale.
+    // y-codemirror.next dispatch les updates remote sans userEvent ; les laisser
+    // passer évite que notre filter ne re-redirige les changements des autres.
+    // On filtre aussi seulement input/delete (pas undo/redo qui restaurent un état).
+    const isInput  = tr.isUserEvent('input');
+    const isDelete = tr.isUserEvent('delete');
+    if (!isInput && !isDelete) return tr;
 
     const startSections = tr.startState.field(sectionsField, false) ?? [];
     let needsRedirect = false;
@@ -183,18 +201,17 @@ export function ownershipFilter(myClientId: number, opts: { onBlocked?: (foreign
     let insertedText = '';
 
     tr.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
-      // 3. Touche un marqueur ?
+      // 2. Touche un marqueur ?
       for (const s of startSections) {
         const touchesMark = !(toA < s.markFrom || fromA > s.markTo);
         if (touchesMark) {
-          // bloque tout simplement
           needsRedirect = true;
           blockedAuthorId = s.authorId;
-          insertedText = inserted.toString();
+          insertedText += inserted.toString();
           return;
         }
       }
-      // 1+2. Owner check
+      // 3. Owner check
       const ownerAtFrom = sectionAt(startSections, fromA);
       const ownerAtTo   = sectionAt(startSections, toA);
       const fromMine = ownerAtFrom?.authorId === myClientId;
@@ -214,7 +231,31 @@ export function ownershipFilter(myClientId: number, opts: { onBlocked?: (foreign
       }
     });
 
-    if (!needsRedirect) return tr;
+    // 4. Sanitization : neutralise les marqueurs collés/tapés dans l'insertion.
+    //    Remplace OPEN/CLOSE par un espace pour casser le pattern sans
+    //    perdre l'intention du texte.
+    const sanitize = (s: string) => s.replace(new RegExp(MARK_OPEN, 'g'), ' ').replace(new RegExp(MARK_CLOSE, 'g'), ' ');
+
+    if (!needsRedirect) {
+      // Pas de redirect — mais on doit quand même vérifier si l'insertion locale
+      // (dans ma section) ne contient pas de marqueur usurpé (paste).
+      let needsSanitize = false;
+      tr.changes.iterChanges((_fA, _tA, _fB, _tB, inserted) => {
+        if (MARK_ANYLINE_RE.test(inserted.toString())) needsSanitize = true;
+      });
+      if (!needsSanitize) return tr;
+
+      // Rebuild la transaction avec sanitization
+      const newChanges: { from: number; to: number; insert: string }[] = [];
+      tr.changes.iterChanges((fromA, toA, _fB, _tB, inserted) => {
+        newChanges.push({ from: fromA, to: toA, insert: sanitize(inserted.toString()) });
+      });
+      return tr.startState.update({
+        changes:   newChanges,
+        selection: tr.selection,
+        scrollIntoView: tr.scrollIntoView,
+      });
+    }
 
     // Notif côté UI
     if (blockedAuthorId !== null && opts.onBlocked) {
@@ -224,22 +265,28 @@ export function ownershipFilter(myClientId: number, opts: { onBlocked?: (foreign
     }
 
     // Construit une nouvelle transaction : insère à la fin du doc, dans NOTRE section.
-    // Si la dernière section du doc est déjà la nôtre, on append ; sinon on ouvre une nouvelle section.
     const lastSection = startSections[startSections.length - 1];
     const myMark = makeMark(myClientId);
     const docEnd = tr.startState.doc.length;
+    const cleanInserted = sanitize(insertedText || '');
 
     let insertStr: string;
     let cursorOffset: number;
+
     if (lastSection && lastSection.authorId === myClientId) {
-      // Append dans la dernière ligne de ma section
+      // Append dans la dernière ligne de ma section — avec trailing \n
       const lastLineHasContent = lastSection.contentTo > lastSection.contentFrom;
-      insertStr = (lastLineHasContent ? '\n' : '') + (insertedText || '');
-      cursorOffset = docEnd + insertStr.length;
+      const endsWithNl = docEnd > 0 && tr.startState.doc.sliceString(docEnd - 1, docEnd) === '\n';
+      const prefix = (lastLineHasContent && !endsWithNl) ? '\n' : '';
+      // Trailing \n pour isoler des inserts concurrents à la même position
+      insertStr = prefix + cleanInserted + '\n';
+      cursorOffset = docEnd + prefix.length + cleanInserted.length;
     } else {
+      // Fix #3 — leading \n si nécessaire + trailing \n pour résister aux races concurrentes
       const needsLeadingNl = docEnd > 0 && tr.startState.doc.sliceString(docEnd - 1, docEnd) !== '\n';
-      insertStr = (needsLeadingNl ? '\n' : '') + myMark + '\n' + (insertedText || '');
-      cursorOffset = docEnd + insertStr.length;
+      const lead = needsLeadingNl ? '\n' : '';
+      insertStr = lead + myMark + '\n' + cleanInserted + '\n';
+      cursorOffset = docEnd + lead.length + myMark.length + 1 + cleanInserted.length;
     }
 
     return tr.startState.update({

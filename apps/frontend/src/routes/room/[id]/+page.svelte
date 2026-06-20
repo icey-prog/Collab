@@ -32,14 +32,27 @@
   let countdownTimer: ReturnType<typeof setInterval> | null = null;
   let copied = false;
   let showShare = false;
-  let joinUrl = '';
+  // Initialise synchroniquement avec window.location.origin pour éviter race
+  // au premier clic share avant que getSharableBase() async ne résolve l'IP LAN.
+  let joinUrl = typeof window !== 'undefined' && roomId
+    ? `${window.location.origin}/room/${roomId}`
+    : '';
 
   function clickOutside(node: HTMLElement, callback: () => void) {
-    const handle = (e: MouseEvent) => {
+    const onClick = (e: MouseEvent) => {
       if (!node.contains(e.target as Node)) callback();
     };
-    document.addEventListener('mousedown', handle, true);
-    return { destroy() { document.removeEventListener('mousedown', handle, true); } };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') callback();
+    };
+    document.addEventListener('mousedown', onClick, true);
+    document.addEventListener('keydown', onKey);
+    return {
+      destroy() {
+        document.removeEventListener('mousedown', onClick, true);
+        document.removeEventListener('keydown', onKey);
+      }
+    };
   }
 
   async function copyCode() {
