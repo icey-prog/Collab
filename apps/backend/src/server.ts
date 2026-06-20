@@ -247,14 +247,43 @@ app.get('/admin/stats', async (req) => {
   };
 });
 
-/* GET /local-ip — IP LAN de la machine (utile pour QR code sur localhost) */
+/* GET /local-ip — IP LAN de la machine (utile pour QR code sur localhost)
+ * Priorité : 192.168.x > 10.x > 172.16-31.x > APIPA, en évitant les bridges
+ * Docker/Hyper-V et interfaces virtuelles (VirtualBox, WSL).
+ */
 function getLanIp(): string | null {
-  for (const nets of Object.values(networkInterfaces())) {
-    for (const addr of (nets ?? [])) {
-      if (addr.family === 'IPv4' && !addr.internal) return addr.address;
+  const interfaces = networkInterfaces();
+  type Candidate = { ip: string; ifName: string; score: number };
+  const candidates: Candidate[] = [];
+
+  const ifScore = (name: string): number => {
+    // Pénalise les interfaces virtuelles connues
+    if (/docker|veth|br-|vEthernet|VirtualBox|WSL|tap|tun|utun/i.test(name)) return -50;
+    // Wi-Fi / Ethernet privilégiés
+    if (/wlan|wifi|wlp|en0|eth0|enp|eno|Wi-?Fi|Ethernet/i.test(name)) return 10;
+    return 0;
+  };
+  const ipScore = (ip: string): number => {
+    if (/^192\.168\./.test(ip))                       return 100;
+    if (/^10\./.test(ip))                             return  90;
+    if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(ip))       return  80;
+    if (/^169\.254\./.test(ip))                       return -10; // APIPA link-local
+    return 0;
+  };
+
+  for (const [ifName, ifs] of Object.entries(interfaces)) {
+    for (const addr of (ifs ?? [])) {
+      if (addr.family !== 'IPv4' || addr.internal) continue;
+      candidates.push({
+        ip: addr.address,
+        ifName,
+        score: ipScore(addr.address) + ifScore(ifName),
+      });
     }
   }
-  return null;
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates[0].ip;
 }
 app.get('/local-ip', async () => ({ ip: getLanIp() }));
 

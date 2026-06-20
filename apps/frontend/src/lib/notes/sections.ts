@@ -141,11 +141,14 @@ export function sectionDecorations(myClientId: number, resolveAuthor: AuthorReso
     build(view: EditorView): DecorationSet {
       const sections = view.state.field(sectionsField, false) ?? [];
       const b = new RangeSetBuilder<Decoration>();
+      const docLen = view.state.doc.length;
       for (const s of sections) {
         const info = resolveAuthor(s.authorId);
         const isMe = s.authorId === myClientId;
-        // Remplace la ligne marqueur par un widget
-        b.add(s.markFrom, s.markTo, Decoration.replace({
+        // Block widget : la range doit couvrir toute la ligne incluant le \n
+        // suivant (sauf si on est sur la dernière ligne du doc).
+        const replaceTo = s.markTo < docLen ? s.markTo + 1 : s.markTo;
+        b.add(s.markFrom, replaceTo, Decoration.replace({
           widget: new AuthorChipWidget(info, isMe),
           block:  true,
         }));
@@ -245,16 +248,17 @@ export function ownershipFilter(myClientId: number, opts: { onBlocked?: (foreign
       });
       if (!needsSanitize) return tr;
 
-      // Rebuild la transaction avec sanitization
+      // Rebuild la transaction avec sanitization — retourne un TransactionSpec
+      // (PAS Transaction — transactionFilter ignore les Transaction retournés)
       const newChanges: { from: number; to: number; insert: string }[] = [];
       tr.changes.iterChanges((fromA, toA, _fB, _tB, inserted) => {
         newChanges.push({ from: fromA, to: toA, insert: sanitize(inserted.toString()) });
       });
-      return tr.startState.update({
-        changes:   newChanges,
-        selection: tr.selection,
+      return [{
+        changes:        newChanges,
+        selection:      tr.selection,
         scrollIntoView: tr.scrollIntoView,
-      });
+      }];
     }
 
     // Notif côté UI
@@ -289,11 +293,11 @@ export function ownershipFilter(myClientId: number, opts: { onBlocked?: (foreign
       cursorOffset = docEnd + lead.length + myMark.length + 1 + cleanInserted.length;
     }
 
-    return tr.startState.update({
-      changes:   { from: docEnd, to: docEnd, insert: insertStr },
-      selection: { anchor: cursorOffset },
+    return [{
+      changes:        { from: docEnd, to: docEnd, insert: insertStr },
+      selection:      { anchor: cursorOffset },
       scrollIntoView: true,
-    });
+    }];
   }));
 }
 
