@@ -1,0 +1,13 @@
+{
+  "name": "collab-mvp",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n back,front -c cyan,green \"npm --prefix apps/backend run dev\" \"npm --prefix apps/frontend run dev\"",
+    "install:all": "npm --prefix apps/backend install && npm --prefix apps/frontend install",
+    "build:front": "npm --prefix apps/frontend run build",
+    "check": "npm --prefix apps/frontend run check"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

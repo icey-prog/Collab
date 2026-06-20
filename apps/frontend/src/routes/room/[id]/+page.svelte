@@ -23,12 +23,26 @@
   import QAModule     from '$lib/components/QAModule.svelte';
   import ToastStack   from '$lib/components/ToastStack.svelte';
   import Loader       from '$lib/components/Loader.svelte';
+  import QRShare      from '$lib/components/QRShare.svelte';
 
   $: roomId = $page.params.id?.toUpperCase() ?? '';
 
   let yBundle: YDocBundle | null = null;
   let countdownTimer: ReturnType<typeof setInterval> | null = null;
   let copied = false;
+  let showShare = false;
+
+  $: joinUrl = typeof window !== 'undefined' && roomId
+    ? `${window.location.origin}/room/${roomId}`
+    : '';
+
+  function clickOutside(node: HTMLElement, callback: () => void) {
+    const handle = (e: MouseEvent) => {
+      if (!node.contains(e.target as Node)) callback();
+    };
+    document.addEventListener('mousedown', handle, true);
+    return { destroy() { document.removeEventListener('mousedown', handle, true); } };
+  }
 
   async function copyCode() {
     try { await navigator.clipboard.writeText(roomId); copied = true; setTimeout(()=>copied=false, 1500); } catch {}
@@ -173,7 +187,7 @@
       <div class="status">
         <div class="room-code-badge">
           <span class="code-text">{roomId}</span>
-          <button class="code-copy-btn" on:click={copyCode} title={copied ? 'Copié' : 'Copier le lien'}>
+          <button class="code-copy-btn" on:click={copyCode} title={copied ? 'Copié' : 'Copier le code'}>
             {#if copied}✓{:else}
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
                 <rect x="5.5" y="5.5" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.5"/>
@@ -182,6 +196,32 @@
             {/if}
           </button>
         </div>
+
+        <!-- Share / QR button -->
+        <div class="share-wrap" use:clickOutside={() => (showShare = false)}>
+          <button
+            class="share-btn"
+            class:active={showShare}
+            on:click={() => (showShare = !showShare)}
+            title="Inviter — QR code"
+            aria-label="Inviter des participants"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <circle cx="12.5" cy="3.5" r="1.8" stroke="currentColor" stroke-width="1.4"/>
+              <circle cx="12.5" cy="12.5" r="1.8" stroke="currentColor" stroke-width="1.4"/>
+              <circle cx="3.5" cy="8" r="1.8" stroke="currentColor" stroke-width="1.4"/>
+              <path d="M5.2 7.1 10.8 4.4M5.2 8.9l5.6 2.7" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            </svg>
+          </button>
+
+          {#if showShare}
+            <div class="share-popover card">
+              <p class="share-hint mono">Inviter dans la room</p>
+              <QRShare url={joinUrl} size={150} />
+            </div>
+          {/if}
+        </div>
+
         <div class="status-sep"></div>
 
         {#if $status === 'connecting'}
@@ -297,6 +337,38 @@
     font-weight: bold;
   }
   .code-copy-btn:hover { background: var(--chartreuse); color: var(--accent-ink); }
+
+  /* Share button + popover */
+  .share-wrap { position: relative; margin-left: 6px; }
+  .share-btn {
+    width: 28px; height: 28px; border-radius: 7px;
+    border: 1px solid var(--navy-10); background: var(--surface);
+    color: var(--navy-55); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .15s, color .15s, border-color .15s;
+  }
+  .share-btn:hover, .share-btn.active {
+    background: var(--chartreuse); color: var(--accent-ink);
+    border-color: transparent;
+  }
+  .share-popover {
+    position: absolute; top: calc(100% + 10px); right: 0;
+    min-width: 240px; padding: 18px;
+    z-index: 200;
+    box-shadow: 0 8px 32px rgba(27,36,69,0.14), 0 2px 8px rgba(27,36,69,0.08);
+    animation: popIn .2s cubic-bezier(.2,.8,.3,1) both;
+  }
+  @keyframes popIn {
+    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .share-hint {
+    font-family: var(--font-mono); font-size: 11px;
+    color: var(--navy-50); text-align: center;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    margin: 0 0 14px;
+  }
+
   .status-sep {
     width: 1px; height: 16px; background: var(--navy-10); margin: 0 14px;
   }

@@ -4,6 +4,7 @@
   import { createRoom, isValidRoomCode } from '$lib/api/room';
   import { isTauri } from '$lib/tauri';
   import ChromeTR from '$lib/components/ChromeTR.svelte';
+  import QRShare from '$lib/components/QRShare.svelte';
 
   // Tauri desktop : auto-redirect vers /host (mode local-first)
   onMount(() => {
@@ -14,6 +15,7 @@
 
   let state: State = 'rest';
   let roomId = '';
+  let roomUrl = '';
   let joinCode = '';
   let joinError = '';
   let copyOk = false;
@@ -28,6 +30,7 @@
     try {
       const res = await createRoom();
       roomId = res.roomId;
+      roomUrl = `${window.location.origin}/room/${roomId}`;
       if (navigator.vibrate) navigator.vibrate([20, 30, 20]);  // success pattern
       state = 'created';
     } catch (e) {
@@ -137,6 +140,11 @@
               </button>
               <button class="btn btn-cta" style="box-shadow:none;padding:12px;" on:click={enterRoom}>Ouvrir la room</button>
             </div>
+          </div>
+
+          <div class="qr-card card" aria-label="QR code — inviter d'autres participants">
+            <div class="qr-card-label mono">Scannez pour rejoindre</div>
+            <QRShare url={roomUrl} size={160} />
           </div>
         {/if}
 
@@ -286,6 +294,19 @@
   }
   .rc-actions { display: flex; gap: 10px; }
   .rc-actions .btn { flex: 1; padding: 12px; font-size: 14px; min-height: 44px; }
+
+  /* QR card */
+  .qr-card {
+    margin-top: 14px; padding: 20px;
+    max-width: 380px;
+    animation: slideUp .5s cubic-bezier(.2,.8,.3,1) .1s both;
+  }
+  .qr-card-label {
+    font-family: var(--font-mono); font-size: 11px;
+    color: var(--navy-50); text-align: center;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    margin-bottom: 14px;
+  }
 
   /* Responsive */
   @media (max-width: 600px) {
