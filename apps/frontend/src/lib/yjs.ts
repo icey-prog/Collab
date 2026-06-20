@@ -21,9 +21,20 @@ export interface UserIdentity {
   colorLight: string;
 }
 
+export interface ChatBlock {
+  id:          string;
+  authorId:    number;     // Y.Doc clientID stable
+  authorName:  string;
+  authorColor: string;
+  text:        string;
+  createdAt:   number;
+  editedAt?:   number;
+}
+
 export interface YDocBundle {
   doc:       Y.Doc;
-  text:      Y.Text;
+  text:      Y.Text;              // legacy fallback (laissé pour compat)
+  blocks:    Y.Array<ChatBlock>;  // chat blocks Discord-style (variante A)
   awareness: Awareness;
   provider:  IndexeddbPersistence;
   destroy:   () => void;
@@ -79,6 +90,7 @@ const MAX_AWARENESS_UPDATE_BYTES = 16 * 1024;  // 16 KB per awareness update
 export function createRoomDoc(socket: Socket, roomId: string): YDocBundle {
   const doc       = new Y.Doc();
   const text      = doc.getText('notes');
+  const blocks    = doc.getArray<ChatBlock>('notes-blocks');
   const awareness = new Awareness(doc);
 
   // Publish local identity to awareness (consumed by y-codemirror.next for remote cursors)
@@ -171,6 +183,7 @@ export function createRoomDoc(socket: Socket, roomId: string): YDocBundle {
   return {
     doc,
     text,
+    blocks,
     awareness,
     provider,
     destroy() {

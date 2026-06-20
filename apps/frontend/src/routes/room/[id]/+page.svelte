@@ -18,7 +18,7 @@
   import { files,     type RoomFile } from '$lib/stores/files';
 
   import Sidebar      from '$lib/components/Sidebar.svelte';
-  import NotesModule  from '$lib/components/NotesModule.svelte';
+  import ChatNotesModule from '$lib/components/ChatNotesModule.svelte';
   import FilesModule  from '$lib/components/FilesModule.svelte';
   import QAModule     from '$lib/components/QAModule.svelte';
   import ToastStack   from '$lib/components/ToastStack.svelte';
@@ -245,7 +245,7 @@
           <Loader size="lg" label="Établissement de la connexion…" />
         </div>
       {:else if $activeModule === 'notes' && yBundle}
-        <NotesModule yText={yBundle.text} awareness={yBundle.awareness} />
+        <ChatNotesModule blocks={yBundle.blocks} awareness={yBundle.awareness} />
       {:else if $activeModule === 'files'}
         <FilesModule {roomId} />
       {:else if $activeModule === 'qa'}

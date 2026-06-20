@@ -5,6 +5,7 @@
   import { isTauri } from '$lib/tauri';
   import ChromeTR from '$lib/components/ChromeTR.svelte';
   import QRShare from '$lib/components/QRShare.svelte';
+  import HotspotHint from '$lib/components/HotspotHint.svelte';
   import { getSharableBase } from '$lib/utils/lan';
 
   // Tauri desktop : auto-redirect vers /host (mode local-first)
@@ -148,6 +149,8 @@
             <div class="qr-card-label mono">Scannez pour rejoindre</div>
             <QRShare url={roomUrl} size={160} />
           </div>
+
+          <HotspotHint />
         {/if}
 
       </div>
