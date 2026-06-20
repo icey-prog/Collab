@@ -21,20 +21,12 @@ export interface UserIdentity {
   colorLight: string;
 }
 
-export interface ChatBlock {
-  id:          string;
-  authorId:    number;     // Y.Doc clientID stable
-  authorName:  string;
-  authorColor: string;
-  text:        string;
-  createdAt:   number;
-  editedAt?:   number;
-}
+export interface AuthorMeta { name: string; color: string; colorLight: string; }
 
 export interface YDocBundle {
   doc:       Y.Doc;
-  text:      Y.Text;              // legacy fallback (laissé pour compat)
-  blocks:    Y.Array<ChatBlock>;  // chat blocks Discord-style (variante A)
+  text:      Y.Text;                 // contenu partagé du bloc-notes
+  authors:   Y.Map<AuthorMeta>;      // clientID → {name, color} — persiste après départ
   awareness: Awareness;
   provider:  IndexeddbPersistence;
   destroy:   () => void;
@@ -90,13 +82,21 @@ const MAX_AWARENESS_UPDATE_BYTES = 16 * 1024;  // 16 KB per awareness update
 export function createRoomDoc(socket: Socket, roomId: string): YDocBundle {
   const doc       = new Y.Doc();
   const text      = doc.getText('notes');
-  const blocks    = doc.getArray<ChatBlock>('notes-blocks');
+  const authors   = doc.getMap<AuthorMeta>('authors');
   const awareness = new Awareness(doc);
 
   // Publish local identity to awareness (consumed by y-codemirror.next for remote cursors)
   awareness.setLocalStateField('user', {
     name:  localIdentity.name,
     color: localIdentity.color,
+    colorLight: localIdentity.colorLight,
+  });
+
+  // Enregistre l'identité dans Y.Map authors — persiste même quand le user quitte
+  // pour que les marqueurs ⟨clientID⟩ dans le doc restent résolvables
+  authors.set(String(doc.clientID), {
+    name:       localIdentity.name,
+    color:      localIdentity.color,
     colorLight: localIdentity.colorLight,
   });
 
@@ -183,7 +183,7 @@ export function createRoomDoc(socket: Socket, roomId: string): YDocBundle {
   return {
     doc,
     text,
-    blocks,
+    authors,
     awareness,
     provider,
     destroy() {
