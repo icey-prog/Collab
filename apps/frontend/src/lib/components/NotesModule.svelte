@@ -7,7 +7,7 @@
   import { EditorState } from '@codemirror/state';
   import {
     EditorView, keymap, highlightActiveLine,
-    placeholder as cmPlaceholder,
+    placeholder as cmPlaceholder, ViewPlugin,
   } from '@codemirror/view';
   import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
   import { yCollab } from 'y-codemirror.next';
@@ -65,6 +65,14 @@
     if (view) view.dispatch({});
   }
 
+  const notebookContentClass = ViewPlugin.fromClass(class {
+    constructor(readonly view: EditorView) { this.sync(); }
+    update() { this.sync(); }
+    sync() {
+      this.view.dom.classList.toggle('cm-notebook-has-content', this.view.state.doc.length > 0);
+    }
+  });
+
   /* ── Copy: strip section markers ─────────────────── */
   let copyState: 'idle' | 'done' = 'idle';
   async function copyAll() {
@@ -94,7 +102,8 @@
         highlightActiveLine(),
         history(),
         keymap.of([...defaultKeymap, ...historyKeymap]),
-        cmPlaceholder('Commence à écrire — un en-tête coloré apparaît automatiquement avec ton nom. Les autres ne peuvent pas modifier ta section.'),
+        cmPlaceholder('Hiii my N*gga !'),
+        notebookContentClass,
         EditorView.lineWrapping,
 
         // Section system
@@ -271,39 +280,43 @@
   .cm-host { flex: 1; min-height: 220px; overflow: auto; }
   :global(.cm-host .cm-editor)         { height: 100%; }
   :global(.cm-host .cm-editor.cm-focused) { outline: none; }
+  :global(.cm-host .cm-editor.cm-notebook-has-content .cm-placeholder) { display: none !important; }
 
-  /* ── Section author chip (block widget replacing marker line) ── */
-  :global(.cm-author-chip) {
-    display: inline-flex; align-items: center; gap: 8px;
-    padding: 5px 12px 5px 10px;
-    margin: 14px 16px 6px;
+  /* ── Marker line — chip rendu via ::before, contenu PUA chars caché ── */
+  :global(.cm-marker-line) {
+    position: relative;
+    /* Cache les chars PUA du marqueur sans utiliser display:none qui
+       casserait le mapping de positions CodeMirror. */
+    font-size: 0 !important;
+    line-height: 0 !important;
+    color: transparent !important;
+    /* Hauteur visible pour accueillir le ::before chip */
+    height: 30px !important;
+    margin: 14px 0 6px !important;
+    padding: 0 16px !important;
+    overflow: visible !important;
+  }
+  :global(.cm-marker-line::before) {
+    content: attr(data-author-name) "  ·  " attr(data-author-tag);
+    position: absolute;
+    top: 0; left: 16px;
+    display: inline-flex; align-items: center;
+    height: 30px;
+    padding: 0 14px;
     border-radius: 7px 7px 7px 0;
     background: color-mix(in srgb, var(--author-color) 14%, transparent);
     border-left: 3px solid var(--author-color);
-    font-family: var(--font-head); font-size: 12px; font-weight: 600;
-    color: var(--navy); letter-spacing: -0.005em;
+    font-family: var(--font-head);
+    font-size: 12px; font-weight: 600;
+    line-height: 1;
+    color: var(--navy);
+    letter-spacing: -0.005em;
+    white-space: nowrap;
     user-select: none;
   }
-  :global(.cm-author-chip--me) {
+  :global(.cm-marker-mine::before) {
     background: color-mix(in srgb, var(--author-color) 22%, transparent);
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--author-color) 40%, transparent);
-  }
-  :global(.cm-author-chip-dot) {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--author-color);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--author-color) 30%, transparent);
-  }
-  :global(.cm-author-chip-name) { color: var(--navy); }
-  :global(.cm-author-chip-tag) {
-    font-family: var(--font-mono); font-weight: 500; font-size: 9px;
-    text-transform: uppercase; letter-spacing: 0.08em;
-    color: var(--navy-50);
-    padding: 1px 6px; border-radius: 3px;
-    background: rgba(255,255,255,0.55);
-    margin-left: 2px;
-  }
-  :global(.cm-author-chip--me .cm-author-chip-tag) {
-    background: var(--author-color); color: white;
   }
 
   /* Section content lines */
@@ -321,34 +334,31 @@
     color: var(--navy-70);
   }
 
-  /* ── y-codemirror.next remote cursors — labels TOUJOURS visibles ── */
-  :global(.cm-ySelection) { background-color: var(--remote-color-light, rgba(255,200,0,0.22)) !important; }
-  :global(.cm-yLineSelection) { background-color: var(--remote-color-light, rgba(255,200,0,0.16)) !important; }
+  /* Remote cursors: quiet editor chrome, visible without badge-like pills. */
+  :global(.cm-ySelection) { background-color: color-mix(in srgb, currentColor 8%, transparent) !important; }
+  :global(.cm-yLineSelection) { background-color: color-mix(in srgb, currentColor 4%, transparent) !important; }
   :global(.cm-ySelectionCaret) {
     position: relative;
     border-left: 2px solid; margin-left: -1px; margin-right: -1px;
     box-sizing: border-box;
   }
   :global(.cm-ySelectionCaretDot) {
-    border-radius: 50%; position: absolute;
-    width: 7px; height: 7px; top: -4px; left: -4px;
+    display: none;
   }
   :global(.cm-ySelectionInfo) {
-    position: absolute; top: -1.4em; left: -1px;
-    font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+    position: absolute; top: -14px; left: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+    font-size: 9px; font-weight: 500;
     line-height: 1; user-select: none;
-    color: white; padding: 3px 7px; border-radius: 4px 4px 4px 0;
+    color: var(--navy-80);
+    padding: 2px 5px;
+    border-radius: 2px;
+    background: var(--surface);
+    border: 1px solid currentColor;
     z-index: 101; white-space: nowrap;
-    opacity: 1 !important;          /* TOUJOURS visible — pas seulement au hover */
-    transition: none;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.18);
-    letter-spacing: 0.02em;
-  }
-  :global(.cm-ySelectionInfo::after) {
-    content: '';
-    position: absolute; bottom: -3px; left: 0;
-    width: 0; height: 0;
-    border-top: 3px solid currentColor;
-    border-right: 4px solid transparent;
+    opacity: 0.95 !important;
+    transition: opacity .14s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    letter-spacing: -0.01em;
   }
 </style>

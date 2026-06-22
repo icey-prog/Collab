@@ -85,6 +85,12 @@ export function createRoomDoc(socket: Socket, roomId: string): YDocBundle {
   const authors   = doc.getMap<AuthorMeta>('authors');
   const awareness = new Awareness(doc);
 
+  const onLocal = (update: Uint8Array, origin: unknown) => {
+    if (origin === 'remote') return;
+    socket.emit('yjs:sync', { roomId, update });
+  };
+  doc.on('update', onLocal);
+
   // Publish local identity to awareness (consumed by y-codemirror.next for remote cursors)
   awareness.setLocalStateField('user', {
     name:  localIdentity.name,
@@ -106,8 +112,17 @@ export function createRoomDoc(socket: Socket, roomId: string): YDocBundle {
     console.debug(`[y-indexeddb] Local data loaded for room ${roomId}`);
   });
 
-  // 1) Request initial state from server
-  socket.emit('yjs:state', { roomId, sv: Y.encodeStateVector(doc) });
+  // 1) Request initial state from server and listen for reconnection
+  const syncDoc = () => {
+    socket.emit('yjs:state', { roomId, sv: Y.encodeStateVector(doc) });
+    const update = encodeAwarenessUpdate(awareness, [doc.clientID]);
+    socket.emit('awareness:update', { roomId, update });
+  };
+
+  if (socket.connected) {
+    syncDoc();
+  }
+  socket.on('connect', syncDoc);
 
   // 2) Apply remote doc updates (with size cap — Fix #4)
   const onUpdate = (msg: { roomId: string; update: ArrayBuffer | Uint8Array }) => {
@@ -133,11 +148,6 @@ export function createRoomDoc(socket: Socket, roomId: string): YDocBundle {
   socket.on('yjs:state',  onState);
 
   // 3) Broadcast local doc updates
-  const onLocal = (update: Uint8Array, origin: unknown) => {
-    if (origin === 'remote') return;
-    socket.emit('yjs:sync', { roomId, update });
-  };
-  doc.on('update', onLocal);
 
   // 4) Awareness transport (with size cap — Fix #4)
   const onAwarenessRemote = (msg: { roomId: string; update: ArrayBuffer | Uint8Array }) => {
@@ -188,6 +198,7 @@ export function createRoomDoc(socket: Socket, roomId: string): YDocBundle {
     provider,
     destroy() {
       doc.off('update', onLocal);
+      socket.off('connect', syncDoc);
       socket.off('yjs:update', onUpdate);
       socket.off('yjs:state',  onState);
       socket.off('awareness:update', onAwarenessRemote);

@@ -21,7 +21,7 @@
 
 import { EditorState, StateField, RangeSetBuilder, Prec, Facet } from '@codemirror/state';
 import type { Text } from '@codemirror/state';
-import { Decoration, EditorView, WidgetType, ViewPlugin } from '@codemirror/view';
+import { Decoration, EditorView, ViewPlugin } from '@codemirror/view';
 import type { DecorationSet, ViewUpdate } from '@codemirror/view';
 
 /* ── Format constants ─────────────────────────────────────── */
@@ -99,60 +99,40 @@ export const sectionsField = StateField.define<Section[]>({
   update: (sections, tr) => tr.docChanged ? parseSections(tr.newDoc) : sections,
 });
 
-/* ── Widget — chip coloré rendu à la place du marqueur ─── */
-
-class AuthorChipWidget extends WidgetType {
-  constructor(readonly author: AuthorInfo, readonly isMe: boolean) { super(); }
-  toDOM(): HTMLElement {
-    const wrap = document.createElement('div');
-    wrap.className = 'cm-author-chip' + (this.isMe ? ' cm-author-chip--me' : '');
-    wrap.style.setProperty('--author-color', this.author.color);
-
-    const dot = document.createElement('span');
-    dot.className = 'cm-author-chip-dot';
-
-    const name = document.createElement('span');
-    name.className = 'cm-author-chip-name';
-    name.textContent = this.author.name;
-
-    const tag = document.createElement('span');
-    tag.className = 'cm-author-chip-tag';
-    tag.textContent = this.isMe ? 'toi' : 'verrouillé';
-
-    wrap.append(dot, name, tag);
-    return wrap;
-  }
-  eq(other: AuthorChipWidget): boolean {
-    return other.author.id === this.author.id && other.author.name === this.author.name
-        && other.author.color === this.author.color && other.isMe === this.isMe;
-  }
-  ignoreEvent() { return false; }
-}
-
-/* ── ViewPlugin — produit les Decorations à partir du sectionsField ─── */
-
+/* ── ViewPlugin — produit les Decorations à partir du sectionsField ───
+ *
+ * Approche : 100% Decoration.line. Aucun WidgetType / Decoration.replace.
+ * Les block widgets et inline replacements corrompaient le tile tree de
+ * CodeMirror (erreurs "No tile at position N" sur coordsAt/scrollIntoView).
+ *
+ * Ligne marqueur : on attache une classe + data-attrs et le CSS render
+ * le chip via ::before (font-size: 0 cache les chars PUA du marqueur).
+ */
 export function sectionDecorations(myClientId: number, resolveAuthor: AuthorResolver) {
   return ViewPlugin.fromClass(class {
     decorations: DecorationSet;
     constructor(view: EditorView) { this.decorations = this.build(view); }
-    update(u: ViewUpdate) {
-      if (u.docChanged || u.viewportChanged) this.decorations = this.build(u.view);
+    update(_u: ViewUpdate) {
+      // Rebuild sur TOUTE update : couvre les transactions vides issues du
+      // refresh authors Y.Map (view.dispatch({}) sans docChanged).
+      this.decorations = this.build(_u.view);
     }
     build(view: EditorView): DecorationSet {
       const sections = view.state.field(sectionsField, false) ?? [];
       const b = new RangeSetBuilder<Decoration>();
-      const docLen = view.state.doc.length;
       for (const s of sections) {
         const info = resolveAuthor(s.authorId);
         const isMe = s.authorId === myClientId;
-        // Block widget : la range doit couvrir toute la ligne incluant le \n
-        // suivant (sauf si on est sur la dernière ligne du doc).
-        const replaceTo = s.markTo < docLen ? s.markTo + 1 : s.markTo;
-        b.add(s.markFrom, replaceTo, Decoration.replace({
-          widget: new AuthorChipWidget(info, isMe),
-          block:  true,
+        // Marqueur — chip rendu via CSS ::before sur la ligne
+        b.add(s.markFrom, s.markFrom, Decoration.line({
+          attributes: {
+            class: 'cm-marker-line ' + (isMe ? 'cm-marker-mine' : 'cm-marker-other'),
+            style: `--author-color: ${info.color};`,
+            'data-author-name': info.name,
+            'data-author-tag':  isMe ? 'toi' : 'verrouillé',
+          },
         }));
-        // Marque les lignes du contenu pour styling
+        // Lignes de contenu — fond léger + barre latérale
         if (s.contentFrom < s.contentTo) {
           let pos = s.contentFrom;
           while (pos < s.contentTo) {
@@ -278,11 +258,12 @@ export function ownershipFilter(myClientId: number, opts: { onBlocked?: (foreign
     let cursorOffset: number;
 
     if (lastSection && lastSection.authorId === myClientId) {
-      // Append dans la dernière ligne de ma section — avec trailing \n
-      const lastLineHasContent = lastSection.contentTo > lastSection.contentFrom;
+      // Append dans la dernière ligne de ma section — avec trailing \n.
+      // CRITIQUE : si le doc ne se termine pas par \n, on insère le \n
+      // séparateur AVANT le contenu pour ne pas coller à la ligne précédente
+      // (cas notamment où la dernière ligne est le marqueur lui-même sans \n).
       const endsWithNl = docEnd > 0 && tr.startState.doc.sliceString(docEnd - 1, docEnd) === '\n';
-      const prefix = (lastLineHasContent && !endsWithNl) ? '\n' : '';
-      // Trailing \n pour isoler des inserts concurrents à la même position
+      const prefix = endsWithNl ? '' : '\n';
       insertStr = prefix + cleanInserted + '\n';
       cursorOffset = docEnd + prefix.length + cleanInserted.length;
     } else {
@@ -296,7 +277,7 @@ export function ownershipFilter(myClientId: number, opts: { onBlocked?: (foreign
     return [{
       changes:        { from: docEnd, to: docEnd, insert: insertStr },
       selection:      { anchor: cursorOffset },
-      scrollIntoView: true,
+      scrollIntoView: false,
     }];
   }));
 }

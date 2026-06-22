@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import QRCode from 'qrcode';
 
   export let url: string;
@@ -7,18 +6,26 @@
 
   let dataUrl = '';
   let copied = false;
+  let qrRequestId = 0;
 
-  onMount(async () => {
+  async function buildQr(nextUrl: string, nextSize: number) {
+    const requestId = ++qrRequestId;
+    if (!nextUrl) {
+      dataUrl = '';
+      return;
+    }
     try {
-      dataUrl = await QRCode.toDataURL(url, {
-        width: size * 2,
+      const nextDataUrl = await QRCode.toDataURL(nextUrl, {
+        width: nextSize * 2,
         margin: 1,
         color: { dark: '#1B2445', light: '#FAFAF7' },
       });
+      if (requestId === qrRequestId) dataUrl = nextDataUrl;
     } catch (e) {
+      if (requestId === qrRequestId) dataUrl = '';
       console.warn('[QRShare]', e);
     }
-  });
+  }
 
   async function copyUrl() {
     try {
@@ -34,6 +41,7 @@
   }
 
   $: canShare = typeof navigator !== 'undefined' && !!navigator.share;
+  $: buildQr(url, size);
 </script>
 
 <div class="qr-block">
