@@ -122,7 +122,7 @@
           '.cm-scroller': { fontFamily: 'var(--font-body)', lineHeight: '1.7', padding: '4px 0 16px' },
           '.cm-content':  { padding: '8px 16px', color: 'var(--navy)', caretColor: 'var(--navy)' },
           '.cm-activeLine':       { background: 'transparent' },
-          '.cm-cursor':           { borderLeftColor: 'var(--navy)', borderLeftWidth: '2px' },
+          '.cm-cursor':           { borderLeftColor: 'var(--cm-cursor-color, var(--navy))', borderLeftWidth: '2px' },
           '.cm-selectionBackground, ::selection': { background: 'var(--chartreuse) !important' },
         }, { dark: false }),
       ],
@@ -144,41 +144,6 @@
 </script>
 
 <div class="notes-zone">
-
-  <!-- Zone header -->
-  <div class="zone-header">
-    <div class="zone-title-row">
-      <span class="zone-ico">
-        <svg viewBox="0 0 18 18" fill="none">
-          <path d="M4 2.5h7L14.5 6v9.5H4z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
-          <path d="M10.5 2.5V6h4M6.5 9.5h5M6.5 12h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-        </svg>
-      </span>
-      <h2 class="zone-title">Bloc-notes — sections verrouillées</h2>
-      {#if $isOnline}
-        <span class="zone-tag">CRDT · ownership par section</span>
-      {:else}
-        <span class="zone-tag offline">✎ Hors-ligne · sauvegardé localement</span>
-      {/if}
-    </div>
-    <p class="zone-desc">
-      Chaque participant a sa propre <strong>section colorée</strong>. Tu peux écrire librement dans la tienne, mais pas modifier celle des autres — toute frappe en zone verrouillée est redirigée vers une nouvelle section à toi.
-    </p>
-
-    {#if peers.length > 0}
-      <div class="peers">
-        <span class="peers-lbl">Participants visibles :</span>
-        <span class="peer-chip peer-self" style:--peer-color={safeColor(localIdentity.color)}>
-          <span class="peer-dot"></span>{safeName(localIdentity.name)} <span class="tag-self">toi</span>
-        </span>
-        {#each peers as p (p.id)}
-          <span class="peer-chip" style:--peer-color={p.color}>
-            <span class="peer-dot"></span>{p.name}
-          </span>
-        {/each}
-      </div>
-    {/if}
-  </div>
 
   <!-- Editor -->
   <div class="editor">
@@ -206,46 +171,14 @@
       </button>
     </div>
 
-    <div class="cm-host" bind:this={host}></div>
+    <div class="cm-host" bind:this={host}
+         style="--cm-cursor-color: {safeColor(localIdentity.color)};"></div>
   </div>
 
 </div>
 
 <style>
   .notes-zone { display: flex; flex-direction: column; gap: 14px; flex: 1; min-height: 0; }
-
-  .zone-header { display: flex; flex-direction: column; gap: 8px; }
-  .zone-title-row { display: flex; align-items: center; gap: 10px; }
-  .zone-ico { width: 22px; height: 22px; color: var(--navy-60); flex-shrink: 0; }
-  .zone-ico svg { width: 100%; height: 100%; }
-  .zone-title { font-family: var(--font-head); font-weight: 700; font-size: 17px; color: var(--navy); margin: 0; letter-spacing: -0.01em; }
-  .zone-tag {
-    font-family: var(--font-mono); font-size: 10px;
-    color: var(--navy-50); background: var(--navy-06);
-    padding: 3px 8px; border-radius: var(--r-pill);
-    letter-spacing: 0.06em; margin-left: auto; white-space: nowrap;
-  }
-  .zone-tag.offline { background: var(--warning); color: var(--navy); }
-  .zone-desc { font-size: 13px; color: var(--navy-50); line-height: 1.55; margin: 0; max-width: 640px; }
-
-  .peers { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .peers-lbl { font-family: var(--font-mono); font-size: 10px; color: var(--navy-50); letter-spacing: 0.06em; text-transform: uppercase; }
-  .peer-chip {
-    display: inline-flex; align-items: center; gap: 6px;
-    padding: 3px 9px 3px 7px; border-radius: var(--r-pill);
-    background: var(--navy-06); font-size: 12px; font-weight: 500; color: var(--navy);
-  }
-  .peer-chip.peer-self { background: color-mix(in srgb, var(--peer-color) 18%, transparent); }
-  .tag-self {
-    font-family: var(--font-mono); font-size: 9px;
-    background: var(--peer-color); color: white;
-    padding: 1px 5px; border-radius: 3px; margin-left: 2px;
-  }
-  .peer-dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: var(--peer-color);
-    box-shadow: 0 0 0 2px color-mix(in srgb, var(--peer-color) 25%, transparent);
-  }
 
   .editor {
     flex: 1; background: var(--surface);
