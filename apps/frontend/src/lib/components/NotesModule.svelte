@@ -319,21 +319,6 @@
     box-shadow: 0 0 0 1px color-mix(in srgb, var(--author-color) 40%, transparent);
   }
 
-  /* Section content lines */
-  :global(.cm-author-line) {
-    padding-left: 24px !important;
-    position: relative;
-    border-left: 3px solid color-mix(in srgb, var(--author-color) 50%, transparent);
-    margin-left: 16px;
-  }
-  :global(.cm-author-line--me) {
-    background: color-mix(in srgb, var(--author-color) 5%, transparent);
-  }
-  :global(.cm-author-line--other) {
-    background: color-mix(in srgb, var(--author-color) 3%, transparent);
-    color: var(--navy-70);
-  }
-
   /* Remote cursors: quiet editor chrome, visible without badge-like pills. */
   :global(.cm-ySelection) { background-color: color-mix(in srgb, currentColor 8%, transparent) !important; }
   :global(.cm-yLineSelection) { background-color: color-mix(in srgb, currentColor 4%, transparent) !important; }

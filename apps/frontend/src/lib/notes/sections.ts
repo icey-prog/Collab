@@ -123,7 +123,9 @@ export function sectionDecorations(myClientId: number, resolveAuthor: AuthorReso
       for (const s of sections) {
         const info = resolveAuthor(s.authorId);
         const isMe = s.authorId === myClientId;
-        // Marqueur — chip rendu via CSS ::before sur la ligne
+        // Seulement le chip header sur la ligne marqueur — pas de styling
+        // sur les lignes de contenu. Approche minimale : seul le curseur
+        // distant identifie qui écrit où.
         b.add(s.markFrom, s.markFrom, Decoration.line({
           attributes: {
             class: 'cm-marker-line ' + (isMe ? 'cm-marker-mine' : 'cm-marker-other'),
@@ -132,20 +134,6 @@ export function sectionDecorations(myClientId: number, resolveAuthor: AuthorReso
             'data-author-tag':  isMe ? 'toi' : 'verrouillé',
           },
         }));
-        // Lignes de contenu — fond léger + barre latérale
-        if (s.contentFrom < s.contentTo) {
-          let pos = s.contentFrom;
-          while (pos < s.contentTo) {
-            const line = view.state.doc.lineAt(pos);
-            b.add(line.from, line.from, Decoration.line({
-              attributes: {
-                class: 'cm-author-line' + (isMe ? ' cm-author-line--me' : ' cm-author-line--other'),
-                style: `--author-color: ${info.color};`,
-              },
-            }));
-            pos = line.to + 1;
-          }
-        }
       }
       return b.finish();
     }
