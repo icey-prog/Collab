@@ -282,17 +282,38 @@
   :global(.cm-host .cm-editor.cm-focused) { outline: none; }
   :global(.cm-host .cm-editor.cm-notebook-has-content .cm-placeholder) { display: none !important; }
 
-  /* ── Marker line — chars PUA cachés, AUCUN chip visible ──
-     Approche minimaliste : pas de header coloré. La distinction des
-     sections passe uniquement par les curseurs Y.js distants. */
+  /* ── Marker line — chip rendu via ::before, chars PUA cachés ── */
   :global(.cm-marker-line) {
+    position: relative;
     font-size: 0 !important;
     line-height: 0 !important;
     color: transparent !important;
-    height: 0 !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    overflow: hidden !important;
+    height: 30px !important;
+    margin: 14px 0 6px !important;
+    padding: 0 16px !important;
+    overflow: visible !important;
+  }
+  :global(.cm-marker-line::before) {
+    content: attr(data-author-name) "  ·  " attr(data-author-tag);
+    position: absolute;
+    top: 0; left: 16px;
+    display: inline-flex; align-items: center;
+    height: 30px;
+    padding: 0 14px;
+    border-radius: 7px 7px 7px 0;
+    background: color-mix(in srgb, var(--author-color) 14%, transparent);
+    border-left: 3px solid var(--author-color);
+    font-family: var(--font-head);
+    font-size: 12px; font-weight: 600;
+    line-height: 1;
+    color: var(--navy);
+    letter-spacing: -0.005em;
+    white-space: nowrap;
+    user-select: none;
+  }
+  :global(.cm-marker-mine::before) {
+    background: color-mix(in srgb, var(--author-color) 22%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--author-color) 40%, transparent);
   }
 
   /* Remote cursors: quiet editor chrome, visible without badge-like pills. */

@@ -147,7 +147,15 @@ export function createRoomDoc(socket: Socket, roomId: string): YDocBundle {
   socket.on('yjs:update', onUpdate);
   socket.on('yjs:state',  onState);
 
-  // 3) Broadcast local doc updates
+  // 3) Broadcast local doc updates — CRITIQUE : sans ça, les autres
+  //    clients ne reçoivent jamais nos modifs ni la position de notre
+  //    curseur (les RelativePositions Y.js ne sont pas résolvables sur
+  //    un doc qui n'a pas reçu les mêmes updates).
+  const onLocal = (update: Uint8Array, origin: unknown) => {
+    if (origin === 'remote') return;
+    socket.emit('yjs:sync', { roomId, update });
+  };
+  doc.on('update', onLocal);
 
   // 4) Awareness transport (with size cap — Fix #4)
   const onAwarenessRemote = (msg: { roomId: string; update: ArrayBuffer | Uint8Array }) => {
