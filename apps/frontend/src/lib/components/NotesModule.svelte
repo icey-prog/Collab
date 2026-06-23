@@ -215,38 +215,17 @@
   :global(.cm-host .cm-editor.cm-focused) { outline: none; }
   :global(.cm-host .cm-editor.cm-notebook-has-content .cm-placeholder) { display: none !important; }
 
-  /* ── Marker line — chip rendu via ::before, chars PUA cachés ── */
+  /* ── Marker line — invisible, juste les chars PUA cachés.
+     Pas de chip ("pseudo · toi/verrouillé") : seul le curseur Y.js inline
+     identifie qui écrit où. ── */
   :global(.cm-marker-line) {
-    position: relative;
     font-size: 0 !important;
     line-height: 0 !important;
     color: transparent !important;
-    height: 30px !important;
-    margin: 14px 0 6px !important;
-    padding: 0 16px !important;
-    overflow: visible !important;
-  }
-  :global(.cm-marker-line::before) {
-    content: attr(data-author-name) "  ·  " attr(data-author-tag);
-    position: absolute;
-    top: 0; left: 16px;
-    display: inline-flex; align-items: center;
-    height: 30px;
-    padding: 0 14px;
-    border-radius: 7px 7px 7px 0;
-    background: color-mix(in srgb, var(--author-color) 14%, transparent);
-    border-left: 3px solid var(--author-color);
-    font-family: var(--font-head);
-    font-size: 12px; font-weight: 600;
-    line-height: 1;
-    color: var(--navy);
-    letter-spacing: -0.005em;
-    white-space: nowrap;
-    user-select: none;
-  }
-  :global(.cm-marker-mine::before) {
-    background: color-mix(in srgb, var(--author-color) 22%, transparent);
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--author-color) 40%, transparent);
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important;
   }
 
   /* Remote cursors: quiet editor chrome, visible without badge-like pills. */
@@ -260,20 +239,25 @@
   :global(.cm-ySelectionCaretDot) {
     display: none;
   }
+  /* Le caret parent (.cm-ySelectionCaret) pose background-color/border-color
+     inline = couleur de l'auteur. On laisse le badge hériter ce fond (au lieu
+     de le neutraliser) pour que le pseudo soit identifiable d'un coup d'œil.
+     !important nécessaire : le baseTheme de y-codemirror.next a la même
+     spécificité et est injecté après notre style. */
   :global(.cm-ySelectionInfo) {
-    position: absolute; top: -14px; left: 0;
+    position: absolute; top: -15px; left: 0;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
-    font-size: 9px; font-weight: 500;
-    line-height: 1; user-select: none;
-    color: var(--navy-80);
-    padding: 2px 5px;
-    border-radius: 2px;
-    background: var(--surface);
-    border: 1px solid currentColor;
+    font-size: 10px !important; font-weight: 600;
+    line-height: 1 !important; user-select: none;
+    color: white !important;
+    padding: 2px 6px !important;
+    border-radius: 3px;
+    background: inherit !important;
+    border: none !important;
     z-index: 101; white-space: nowrap;
-    opacity: 0.95 !important;
+    opacity: 1 !important;
     transition: opacity .14s ease;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.18);
     letter-spacing: -0.01em;
   }
 </style>

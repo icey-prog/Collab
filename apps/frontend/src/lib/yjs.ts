@@ -85,11 +85,28 @@ export function createRoomDoc(socket: Socket, roomId: string): YDocBundle {
   const authors   = doc.getMap<AuthorMeta>('authors');
   const awareness = new Awareness(doc);
 
+  // Bug critique : si on émet 'yjs:sync' avant que le serveur ait traité
+  // 'join:room', `socket.rooms.has(roomId)` est encore faux côté serveur →
+  // l'update est silencieusement droppé. Les updates suivants en dépendent
+  // structurellement (CRDT) et s'appliquent alors sans erreur mais sur un
+  // texte vide. Fix : bufferiser tout update local émis avant confirmation
+  // de join, flush dès que 'room:joined' arrive.
+  let joined = false;
+  const pendingLocal: Uint8Array[] = [];
+
   const onLocal = (update: Uint8Array, origin: unknown) => {
     if (origin === 'remote') return;
+    if (!joined) { pendingLocal.push(update); return; }
     socket.emit('yjs:sync', { roomId, update });
   };
   doc.on('update', onLocal);
+
+  const onJoined = () => {
+    joined = true;
+    for (const u of pendingLocal) socket.emit('yjs:sync', { roomId, update: u });
+    pendingLocal.length = 0;
+  };
+  socket.on('room:joined', onJoined);
 
   // Publish local identity to awareness (consumed by y-codemirror.next for remote cursors)
   awareness.setLocalStateField('user', {
@@ -198,6 +215,7 @@ export function createRoomDoc(socket: Socket, roomId: string): YDocBundle {
     provider,
     destroy() {
       doc.off('update', onLocal);
+      socket.off('room:joined', onJoined);
       socket.off('connect', syncDoc);
       socket.off('yjs:update', onUpdate);
       socket.off('yjs:state',  onState);
