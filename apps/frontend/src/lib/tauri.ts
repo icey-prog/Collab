@@ -44,6 +44,8 @@ export const getLocalIp         = () => invokeSafe<string>('get_local_ip');
 export const checkHotspotActive = () => invokeSafe<boolean>('check_hotspot_active');
 export const openHotspotSettings = () => invokeSafe<void>('open_hotspot_settings');
 export const openLogFile        = () => invokeSafe<void>('open_log_file');
+export const readLog            = () => invokeSafe<string>('read_log');
+export const diagSnapshot       = () => invokeSafe<Record<string, unknown>>('diag_snapshot');
 
 export function onBackendFailed(callback: (err: string) => void) {
   if (!isTauri() || !window.__TAURI__ || !window.__TAURI__.event) return;

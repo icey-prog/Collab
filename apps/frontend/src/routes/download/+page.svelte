@@ -72,8 +72,8 @@
   // (taille > 100 Mo dépasse la limite git/Vercel, le release storage gère ça).
   const WIN_EXE_URL = 'https://github.com/icey-prog/Collab/releases/latest/download/Collab-Portable-x64.zip';
   const WIN_EXE_AVAILABLE = true;
-  const WIN_EXE_SIZE_MB = 102;
-  const WIN_EXE_LABEL = 'Télécharger pour Windows (portable .zip, 102 Mo)';
+  const WIN_EXE_SIZE_MB = 23;
+  const WIN_EXE_LABEL = 'Télécharger pour Windows (portable .zip, 23 Mo)';
 </script>
 
 <svelte:head>

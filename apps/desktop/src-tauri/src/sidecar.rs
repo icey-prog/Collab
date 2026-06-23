@@ -11,6 +11,19 @@ use std::io::Write;
 
 pub struct SidecarState(pub Mutex<Option<CommandChild>>);
 
+/// B7 fix : à l'exit de l'app (ou quand state drop), kill le child explicitement.
+/// CommandChild Tauri 1.x n'a pas de Drop auto → process zombie si pas killé.
+impl Drop for SidecarState {
+  fn drop(&mut self) {
+    if let Ok(mut guard) = self.0.lock() {
+      if let Some(child) = guard.take() {
+        eprintln!("[sidecar] Drop SidecarState → kill child");
+        let _ = child.kill();
+      }
+    }
+  }
+}
+
 // Port fixe sidecar Tauri. Choix IANA dynamic range, peu de collisions probables.
 // Option C (port dynamique) ciblée post-MVP : voir docs/TAURI-PLAN.md §14.
 pub const COLLAB_PORT: u16 = 47931;
@@ -45,6 +58,46 @@ fn log_to_file(app: &tauri::AppHandle, message: &str) {
 pub fn open_log_file(app: tauri::AppHandle) {
   let log_path = get_log_path(&app);
   let _ = tauri::api::shell::open(&app.shell_scope(), log_path, None);
+}
+
+/// Lit le contenu actuel du fichier log (utilisé par diag UI).
+/// Renvoie les N dernières lignes (max 200).
+#[tauri::command]
+pub fn read_log(app: tauri::AppHandle) -> Result<String, String> {
+  let log_path = get_log_path(&app);
+  let content = std::fs::read_to_string(&log_path)
+    .map_err(|e| format!("Lecture log impossible ({}): {}", log_path, e))?;
+  let lines: Vec<&str> = content.lines().collect();
+  let start = lines.len().saturating_sub(200);
+  Ok(lines[start..].join("\n"))
+}
+
+/// Diagnostic : retourne snapshot complet d'état pour debug UI.
+#[tauri::command]
+pub fn diag_snapshot(
+  app: tauri::AppHandle,
+  state: tauri::State<'_, SidecarState>,
+) -> serde_json::Value {
+  let port_free = is_port_free(COLLAB_PORT);
+  let backend_running = state.0.lock().map(|g| g.is_some()).unwrap_or(false);
+  let log_path = get_log_path(&app);
+
+  // Tail tasklist pour vérifier processes Collab
+  let tasklist = std::process::Command::new("tasklist")
+    .args(["/FI", "IMAGENAME eq collab-backend.exe", "/FO", "CSV", "/NH"])
+    .output()
+    .ok()
+    .and_then(|o| String::from_utf8(o.stdout).ok())
+    .unwrap_or_default();
+
+  serde_json::json!({
+    "port": COLLAB_PORT,
+    "port_free": port_free,
+    "backend_running_in_state": backend_running,
+    "log_path": log_path,
+    "tasklist_collab_backend": tasklist.trim(),
+    "version": env!("CARGO_PKG_VERSION"),
+  })
 }
 
 /// Vérifie si le port est libre en tentant un bind TCP.
