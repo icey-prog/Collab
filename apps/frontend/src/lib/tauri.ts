@@ -9,6 +9,7 @@
 
 interface TauriGlobal {
   invoke: (cmd: string, args?: Record<string, unknown>) => Promise<unknown>;
+  event: any;
 }
 
 declare global {
@@ -42,6 +43,14 @@ export const getBackendPort     = () => invokeSafe<number>('get_backend_port');
 export const getLocalIp         = () => invokeSafe<string>('get_local_ip');
 export const checkHotspotActive = () => invokeSafe<boolean>('check_hotspot_active');
 export const openHotspotSettings = () => invokeSafe<void>('open_hotspot_settings');
+export const openLogFile        = () => invokeSafe<void>('open_log_file');
+
+export function onBackendFailed(callback: (err: string) => void) {
+  if (!isTauri() || !window.__TAURI__ || !window.__TAURI__.event) return;
+  window.__TAURI__.event.listen('backend_failed', (e: any) => {
+    callback(e.payload as string);
+  });
+}
 
 /**
  * URL absolue du backend (sidecar Tauri local OR cloud Fly).

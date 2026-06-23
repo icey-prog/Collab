@@ -5,3 +5,10 @@ build
 .env.*
 !.env.example
 .DS_Store
+
+# Binaires de distribution — uploadés sur GitHub Releases (taille > limite Vercel/git)
+static/downloads/*.zip
+static/downloads/*.msix
+static/downloads/*.exe
+!static/downloads/.gitkeep
+

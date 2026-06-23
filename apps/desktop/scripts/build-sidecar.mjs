@@ -3,12 +3,18 @@
  * Compile le backend Node en binaire standalone via `pkg`, puis le copie
  * dans src-tauri/binaries/ avec le bon nom de target-triple Rust.
  *
+ * Pipeline :
+ *   1. esbuild : TypeScript → dist/server.bundle.cjs  (bundle CJS complet, résout les exports
+ *                conditionnels de lib0/yjs que pkg ne sait pas gérer seul)
+ *   2. pkg     : dist/server.bundle.cjs → exe standalone par platform
+ *
  * Pré-requis :
  *   npm i -g pkg
+ *   (esbuild est déjà dans devDependencies du backend)
  *
  * Usage :
  *   node scripts/build-sidecar.mjs
- *   node scripts/build-sidecar.mjs --target win   # Windows seul
+ *   node scripts/build-sidecar.mjs --target=win   # Windows seul
  */
 
 import { execSync } from 'node:child_process';
@@ -48,9 +54,21 @@ const selected = targetArg
 
 console.log(`▶ Targets : ${selected.join(', ')}`);
 
-// 1. Build TypeScript backend
-console.log('▶ TypeScript build…');
-execSync('npm run build', { cwd: BACKEND, stdio: 'inherit' });
+// 1. Bundle TypeScript via esbuild → dist/server.bundle.cjs
+//
+// IMPORTANT — Pourquoi esbuild et pas tsc seul ?
+//   lib0 (dépendance de yjs) utilise les "conditional exports" ESM/CJS dans son package.json.
+//   pkg seul (alimenté par le tsc output ESM) tente de résoudre ces exports au RUNTIME via le
+//   système de fichiers du snapshot → cherche "C:\snapshot\...\lib0\dist\array.cjs" → MODULE_NOT_FOUND.
+//   esbuild --bundle résout statiquement TOUS les modules au BUILD TIME et produit un seul fichier
+//   CJS auto-suffisant : aucun lookup dynamique au runtime → aucun MODULE_NOT_FOUND.
+console.log('▶ esbuild bundle (CJS, résolution statique des modules)…');
+const bundleOut = join(BACKEND, 'dist', 'server.bundle.cjs');
+execSync(
+  `npx esbuild src/server.ts --bundle --platform=node --format=cjs --target=node22 --outfile="${bundleOut}" --log-level=warning`,
+  { cwd: BACKEND, stdio: 'inherit' },
+);
+console.log(`✓ Bundle : ${bundleOut}`);
 
 // 2. Vérifier pkg installé
 try { execSync('pkg --version', { stdio: 'pipe' }); }
@@ -61,7 +79,7 @@ catch {
 
 mkdirSync(BINS, { recursive: true });
 
-// 3. Boucler les targets
+// 3. Boucler les targets : pkg emballe le bundle CJS (simple fichier, sans exports conditionnels)
 for (const key of selected) {
   const t = TARGETS[key];
   if (!t) { console.error(`✗ Target inconnue : ${key}`); continue; }
@@ -69,7 +87,7 @@ for (const key of selected) {
   const tmpOut = resolve(BINS, `_tmp-${key}${t.ext}`);
   console.log(`▶ pkg ${t.pkg}…`);
   execSync(
-    `pkg ${join(BACKEND, 'dist/server.js')} --targets ${t.pkg} --output "${tmpOut}"`,
+    `pkg "${bundleOut}" --targets ${t.pkg} --output "${tmpOut}"`,
     { stdio: 'inherit' },
   );
 

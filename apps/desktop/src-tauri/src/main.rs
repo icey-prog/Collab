@@ -10,7 +10,7 @@ mod tray;
 
 use sidecar::SidecarState;
 use std::sync::Mutex;
-use tauri::Manager;
+// tauri::Manager retiré : plus utilisé depuis suppression auto-start dans setup() (B2)
 
 fn main() {
   tauri::Builder::default()
@@ -20,6 +20,7 @@ fn main() {
       sidecar::stop_backend,
       sidecar::is_backend_running,
       sidecar::get_backend_port,
+      sidecar::open_log_file,
       network::get_local_ip,
       network::check_hotspot_active,
       settings::open_hotspot_settings,
@@ -34,13 +35,12 @@ fn main() {
         api.prevent_close();
       }
     })
-    .setup(|app| {
-      // Auto-start backend au lancement (best-effort)
-      let handle = app.handle();
-      tauri::async_runtime::spawn(async move {
-        let state: tauri::State<SidecarState> = handle.state();
-        let _ = sidecar::start_backend(handle.clone(), state).await;
-      });
+    .setup(|_app| {
+      // Correction B2 : pas d'auto-start ici. HostPanel.svelte orchestre le
+      // démarrage via invoke('start_backend') au mount, après que la WebView
+      // soit prête à écouter les events (sinon backend_failed perdu).
+      // Idempotence assurée côté front (is_backend_running check) et Rust
+      // (Mutex lock + zombie cleanup).
       Ok(())
     })
     .run(tauri::generate_context!())

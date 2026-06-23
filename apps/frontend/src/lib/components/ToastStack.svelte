@@ -4,7 +4,7 @@
 
 <div class="stack">
   {#each $toasts as t (t.id)}
-    <div class="toast" class:success={t.kind === 'success'}>
+    <div class="toast" class:success={t.kind === 'success'} class:error={t.kind === 'error'}>
       <span class="dot"></span>
       <span class="t-txt">{t.text}</span>
     </div>
@@ -38,4 +38,9 @@
   }
   .t-txt { font-size: 14px; color: var(--navy); font-weight: 500; }
   .toast.success { border-left: 3px solid var(--chartreuse); }
+  .toast.error {
+    border-left: 3px solid #E63946;
+    background: color-mix(in srgb, #E63946 8%, var(--surface));
+  }
+  .toast.error .dot { background: #E63946; animation: none; }
 </style>

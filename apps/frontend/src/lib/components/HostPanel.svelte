@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import QRCode from 'qrcode';
   import { createRoom } from '$lib/api/room';
-  import { getLocalIp, startBackend, isTauri } from '$lib/tauri';
+  import { getLocalIp, startBackend, isBackendRunning, getBackendPort, isTauri, getBackendUrl } from '$lib/tauri';
   import { pushToast } from '$lib/stores/room';
   import { getSharableBase } from '$lib/utils/lan';
 
@@ -11,10 +11,36 @@
   let state: State = 'idle';
   let roomId      = '';
   let localIp     = '';
-  let port        = 3001;
+  let port        = 47931;    // Port réel du sidecar (récupéré dynamiquement ci-dessous)
   let qrSvg       = '';
   let copyOk      = false;
   let sharableBase = '';
+
+  /**
+   * Attend que le sidecar soit réellement prêt à accepter des connexions.
+   * Correction bug H2 (TAURI-PLAN §14.3) : le process peut être spawné mais
+   * le port pas encore bound quand le front tente le premier fetch.
+   *
+   * Correction bug B1 : remplace AbortSignal.timeout (Chrome 103+, indispo dans
+   * vieilles WebView2) par AbortController + setTimeout. Timeout porté à 3000ms
+   * pour ne pas avorter une réponse en cours (sidecar init lent sous CPU saturé).
+   */
+  async function waitForBackendReady(maxMs = 10000, intervalMs = 300): Promise<boolean> {
+    const backendUrl = await getBackendUrl();
+    const deadline = Date.now() + maxMs;
+    while (Date.now() < deadline) {
+      const ctl = new AbortController();
+      const timer = setTimeout(() => ctl.abort(), 3000);
+      try {
+        const res = await fetch(`${backendUrl}/`, { signal: ctl.signal });
+        clearTimeout(timer);
+        if (res.ok) return true;
+      } catch { /* sidecar pas prêt ou abort — continue */ }
+      clearTimeout(timer);
+      await new Promise(r => setTimeout(r, intervalMs));
+    }
+    return false;
+  }
 
   $: roomUrl = roomId && sharableBase ? `${sharableBase}/room/${roomId}` : '';
 
@@ -36,14 +62,33 @@
     if (state === 'starting') return;
     state = 'starting';
     try {
-      // Si Tauri, démarrer le backend local et récupérer l'IP via Rust invoke
+      // Si Tauri, démarrer le backend sidecar local et récupérer l'IP via Rust invoke
       if (isTauri()) {
-        const ok = await startBackend();
-        if (ok === false) {
-          pushToast('Impossible de démarrer le backend Docker — installé ?', 'info', 5000);
+        // Correction B5 : check si déjà tournant avant invoke (idempotence,
+        // évite race avec auto-start setup() Rust qui peut être en cours).
+        const alreadyRunning = await isBackendRunning();
+        if (!alreadyRunning) {
+          const ok = await startBackend();
+          // invokeSafe retourne null en cas d'erreur (jamais false) — vérifier null
+          if (ok === null) {
+            pushToast('Impossible de démarrer le backend local — voir les logs.', 'error', 6000);
+            state = 'error';
+            return;
+          }
+        }
+
+        // Attendre que le sidecar soit réellement prêt (fix race condition H2 + B1)
+        const ready = await waitForBackendReady();
+        if (!ready) {
+          pushToast('Le backend local ne répond pas après 10 secondes. Réessayer ?', 'error', 6000);
           state = 'error';
           return;
         }
+
+        // Récupérer le port réel depuis Rust et l'IP LAN
+        const backendPort = await getBackendPort();
+        if (backendPort) port = backendPort;
+
         const ip = await getLocalIp();
         if (ip) {
           localIp = ip;
@@ -84,7 +129,7 @@
     <div class="loading">
       <span class="spinner"></span>
       <p>Préparation de la room…</p>
-      {#if isTauri()}<p class="sub">Démarrage du backend local Docker</p>{/if}
+      {#if isTauri()}<p class="sub">Démarrage du backend local…</p>{/if}
     </div>
   {:else if state === 'ready'}
     <div class="ready">

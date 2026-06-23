@@ -68,11 +68,12 @@
     return () => window.removeEventListener('beforeinstallprompt', onPrompt);
   });
 
-  // Portable ZIP buildé via Tauri (apps/desktop). Inclut Collab.exe + sidecar Node.
-  const WIN_EXE_URL = '/downloads/Collab-Portable-x64.zip';
+  // Portable ZIP buildé via Tauri (apps/desktop). Hébergé sur GitHub Releases
+  // (taille > 100 Mo dépasse la limite git/Vercel, le release storage gère ça).
+  const WIN_EXE_URL = 'https://github.com/icey-prog/Collab/releases/latest/download/Collab-Portable-x64.zip';
   const WIN_EXE_AVAILABLE = true;
-  const WIN_EXE_SIZE_MB = 77;
-  const WIN_EXE_LABEL = 'Télécharger pour Windows (portable .zip, 77 Mo)';
+  const WIN_EXE_SIZE_MB = 102;
+  const WIN_EXE_LABEL = 'Télécharger pour Windows (portable .zip, 102 Mo)';
 </script>
 
 <svelte:head>

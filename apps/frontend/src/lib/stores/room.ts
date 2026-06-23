@@ -24,7 +24,7 @@ export const expiresLabel = derived(expiresInSec, ($s) => {
 export interface Toast {
   id: number;
   text: string;
-  kind?: 'info' | 'success';
+  kind?: 'info' | 'success' | 'error';
 }
 export const toasts = writable<Toast[]>([]);
 let toastSeq = 0;
