@@ -1,0 +1,3 @@
+# Binaires sidecar compilés via `npm run build:sidecar` (cf scripts/build-sidecar.mjs)
+# Format : collab-backend-<rust-target-triple>[.exe]
+# Tauri détecte automatiquement la plateforme courante au runtime.

@@ -6,7 +6,7 @@
 # Le nom de l'app sera défini au `fly launch` (ex: collab-back).
 # Une fois déployé, l'URL publique sera : https://<app-name>.fly.dev
 
-app = "collab-back"        # ← sera remplacé par fly launch
+app = "collab-talk"        # cohérent avec apps/frontend/vercel.json rewrites
 primary_region = "cdg"
 
 [build]

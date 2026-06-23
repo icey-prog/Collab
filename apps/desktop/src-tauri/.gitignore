@@ -1,0 +1,12 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+
+# Tauri binaries (générés via npm run build:sidecar)
+binaries/collab-backend-*
+
+# Icons générés via `tauri icon` — commiter optionnellement
+# icons/
+
+# Cargo lock — à committer pour reproducibility
+# Cargo.lock

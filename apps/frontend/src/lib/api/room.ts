@@ -1,7 +1,8 @@
 /**
- * Room API — talks to Fastify backend at /room/*
- * Vite dev proxies these calls to http://localhost:3001.
+ * Room API — wrappe les fetch via apiFetch pour résoudre l'URL backend
+ * selon environnement (Tauri sidecar / Vercel cloud / dev proxy).
  */
+import { apiFetch } from './http';
 
 export interface CreateRoomResponse {
   roomId: string;
@@ -13,7 +14,7 @@ export interface ApiError {
 }
 
 export async function createRoom(): Promise<CreateRoomResponse> {
-  const res = await fetch('/api/room/create', {
+  const res = await apiFetch('/room/create', {
     method: 'POST',
     credentials: 'include',     // admin cookie httpOnly
     // pas de Content-Type ni body : route POST sans payload
@@ -47,7 +48,7 @@ export interface RoomPreview {
  * Returns 404 if expired / inexistant.
  */
 export async function getRoomPreview(roomId: string): Promise<RoomPreview> {
-  const res = await fetch(`/api/room/${roomId}/preview`, { credentials: 'include' });
+  const res = await apiFetch(`/room/${roomId}/preview`, { credentials: 'include' });
   if (res.status === 404) return { exists: false, participants: 0, expiresInSec: 0, full: false };
   if (!res.ok) throw new Error(`Erreur ${res.status}`);
   return res.json();

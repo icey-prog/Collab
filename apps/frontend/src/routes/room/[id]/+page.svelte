@@ -4,7 +4,7 @@
   import { page }    from '$app/stores';
   import * as Y from 'yjs';
 
-  import { getSocket, disconnectSocket } from '$lib/socket';
+  import { initSocket, getSocket, disconnectSocket } from '$lib/socket';
   import { createRoomDoc, type YDocBundle } from '$lib/yjs';
   import { isValidRoomCode } from '$lib/api/room';
 
@@ -62,8 +62,8 @@
   /* ─────────────────────────────────────────────────────
    *  Socket wiring
    * ───────────────────────────────────────────────────── */
-  function wire() {
-    const s = getSocket();
+  async function wire() {
+    const s = await initSocket();
 
     s.on('room:joined', ({ participants: n, isAdmin: a }) => {
       participants.set(n);
@@ -122,7 +122,7 @@
     const base = await getSharableBase();
     joinUrl = `${base}/room/${roomId}`;
 
-    wire();
+    await wire();
     countdownTimer = setInterval(() => {
       expiresInSec.update((s) => Math.max(0, s - 1));
     }, 1000);

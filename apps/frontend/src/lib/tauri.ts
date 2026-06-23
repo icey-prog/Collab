@@ -37,5 +37,28 @@ async function invokeSafe<T = unknown>(cmd: string, args?: Record<string, unknow
 
 export const startBackend       = () => invokeSafe<boolean>('start_backend');
 export const stopBackend        = () => invokeSafe<boolean>('stop_backend');
+export const isBackendRunning   = () => invokeSafe<boolean>('is_backend_running');
+export const getBackendPort     = () => invokeSafe<number>('get_backend_port');
 export const getLocalIp         = () => invokeSafe<string>('get_local_ip');
-export const checkDockerRunning = () => invokeSafe<boolean>('check_docker_installed');
+export const checkHotspotActive = () => invokeSafe<boolean>('check_hotspot_active');
+export const openHotspotSettings = () => invokeSafe<void>('open_hotspot_settings');
+
+/**
+ * URL absolue du backend (sidecar Tauri local OR cloud Fly).
+ * - En Tauri prod : http://127.0.0.1:<port> où port vient du Rust
+ * - En web prod   : VITE_API_URL (Vercel env) ou window.location.origin
+ * - En dev local  : '' (Vite proxy /api → :3001)
+ *
+ * Cache : la fonction est appelée plein d'endroits, on évite le round-trip Tauri.
+ */
+let _backendUrl: string | null = null;
+export async function getBackendUrl(): Promise<string> {
+  if (_backendUrl !== null) return _backendUrl;
+  if (isTauri()) {
+    const port = await getBackendPort();
+    _backendUrl = port ? `http://127.0.0.1:${port}` : 'http://127.0.0.1:47931';
+    return _backendUrl;
+  }
+  _backendUrl = '';
+  return _backendUrl;
+}

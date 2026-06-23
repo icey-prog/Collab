@@ -1,8 +1,10 @@
 # TAURI DESKTOP — Plan d'implémentation (Lot G, v2)
 
-> **Statut** : non démarré · ciblé phase post-MVP
+> **Statut** : ✅ Build MVP livré (juin 2026) · 🟡 bugs distribution Windows trackés §14
 > **Objectif** : transformer Collab en app native Windows/Mac/Linux qui démarre son propre backend (sidecar), expose son IP LAN, et facilite l'usage sans dépendance externe.
-> **Coût total estimé** : 12h (1.5j) phase 1 — sidecar + commandes essentielles. +6h phase 2 — live block edit (variante B notes).
+> **Coût total estimé** : 12h (1.5j) phase 1 — sidecar + commandes essentielles. +6h phase 2 — live block edit (variante B notes). +3h Option C port dynamique §14.
+>
+> **État actuel** : Option A (port hardcoded 47931) appliquée pour démo testeurs. Option C (port dynamique + readiness + lifecycle) à coder pour release publique.
 
 ---
 
@@ -441,3 +443,231 @@ Chaque bloc actif monte un mini CodeMirror avec `yCollab(yTextDuBloc, awareness)
 
 *Document de référence — à mettre à jour quand on passe à l'implémentation.*
 *Dernière mise à jour : juin 2026.*
+
+---
+
+## 14. Audit `/find-bugs` distribution Windows (juin 2026)
+
+Audit appliqué après build MVP. Issues classées par sévérité avec plan correctif.
+
+### 14.1 Critiques
+
+#### C1 · Port 3001 hardcoded partout — collision → app cassée
+
+**Fichiers** :
+- `apps/backend/src/server.ts:41` `PORT ?? 3001`
+- `apps/desktop/src-tauri/src/sidecar.rs` spawn sans `--PORT` arg
+- `apps/desktop/src-tauri/tauri.conf.json` CSP `http://localhost:3001 ws://localhost:3001`
+- `apps/frontend/src/lib/transport.ts` + `socket.ts` assument même-origin OR ENV var build-time
+
+**Évidence** : si Skype / IIS / autre dev tourne sur 3001 → sidecar crash silencieux, app blanche.
+
+**Fix appliqué (Option A)** : port hardcoded **47931** (IANA dynamic range, peu de collisions).
+- `server.ts` : default `PORT ?? COLLAB_PORT ?? 3001`
+- `sidecar.rs` : `pub const COLLAB_PORT: u16 = 47931;`, spawn avec `.env("COLLAB_PORT", ...)`
+- `tauri.conf.json` CSP : `http://localhost:47931 ws://localhost:47931 + 127.0.0.1`
+- `tauri.ts` : nouveau `getBackendUrl()` retourne `http://127.0.0.1:47931` en Tauri
+- `socket.ts` : refactor en `initSocket()` async + `getSocket()` singleton sync
+- `transport.ts` : async, branch `isTauri()` → backend URL absolu
+- `api/http.ts` : nouveau wrapper `apiFetch()` qui préfixe selon environnement
+- `api/room.ts` : utilise `apiFetch`
+- `utils/lan.ts` : utilise `getBackendUrl()` côté Tauri
+
+**Fix complet (Option C, post-MVP)** :
+1. `network.rs` : `pick_free_port() -> u16 { TcpListener::bind("127.0.0.1:0") → local_addr().port() }`
+2. `sidecar.rs` : stocker port dans `Mutex<u16>`, spawn avec `.env("PORT", port.to_string())`
+3. `sidecar.rs` : spawn avec `.env("DATA_DIR", app_data_dir.join("uploads"))` [fix M2 bonus]
+4. `network.rs` : `#[tauri::command] fn get_backend_port(state) -> u16` retourne port dynamique
+5. `main.rs` : emit `"backend_ready"` event quand sidecar log `Server listening`
+6. `main.rs` : log erreurs au lieu de `let _ = ...`
+7. Front `tauri.ts` : `waitBackendReady()` = `listen('backend_ready')`
+8. Front `+page.svelte` room : `await waitBackendReady()` avant `wire()`, loader "Démarrage du moteur local…"
+9. `tauri.conf.json` CSP : `http://localhost:* ws://localhost:*` (portée localhost only, acceptable)
+10. `sidecar.rs` race fix H1 : Mutex lock pendant tout spawn (pas seulement check)
+11. `sidecar.rs` lifecycle M1 : Job Object Windows / `kill_on_drop(true)`
+
+**Effort** : 2-3 h. Rebuild Tauri ~5 min.
+
+---
+
+#### C2 · `main.rs:34` erreurs sidecar avalées — user voit fenêtre vide
+
+```rust
+let _ = sidecar::start_backend(handle.clone(), state).await;
+```
+
+**Évidence** : `let _ =` drop le `Result<bool, String>`. Si sidecar fail (port occupé, binaire corrompu) → aucune notif, aucun log visible user, juste WebView vide.
+
+**Fix** :
+```rust
+match sidecar::start_backend(handle.clone(), state).await {
+  Ok(_)  => log::info!("[sidecar] started"),
+  Err(e) => {
+    log::error!("[sidecar] {}", e);
+    let _ = handle.emit_all("backend_failed", &e);
+  }
+}
+```
+Front écoute `backend_failed` et affiche message d'erreur.
+
+**Effort** : 30 min.
+
+---
+
+#### C3 · Frontend casse en WebView Tauri — fetch `/api/*` 404
+
+**Fichiers** :
+- `apps/frontend/src/lib/utils/lan.ts:27` : `fetch('/api/local-ip')` → `tauri.localhost/api/...` n'existe pas
+- `apps/frontend/src/lib/socket.ts` (avant fix) : `initTransport()` retournait `''` (same-origin) → Socket.io tape `tauri.localhost/socket.io` → fail
+
+**Évidence** : aucun branchement `isTauri()` dans transport/lan/api.
+
+**Fix appliqué** : voir C1 ci-dessus (wrapper `apiFetch`, `getBackendUrl()`, `initSocket()` async).
+
+---
+
+### 14.2 High
+
+#### H1 · `sidecar.rs:18` race `start_backend` pas idempotent
+
+```rust
+if guard.is_some() { return Ok(true); }   // ← check
+// ... long spawn ...
+*guard = Some(child);                      // ← set
+```
+
+**TOCTOU** : deux invokes parallèles depuis front → spawn 2 sidecars → 2e `bind` échoue, état corrompu.
+
+**Fix** : tenir le `Mutex` lock pendant tout le spawn :
+```rust
+let mut guard = state.0.lock().map_err(...)?;
+if guard.is_some() { return Ok(true); }
+let (rx, child) = Command::new_sidecar(...).spawn()?;
+*guard = Some(child);
+drop(guard);
+```
+
+**Effort** : 15 min.
+
+---
+
+#### H2 · `main.rs:39` auto-start sans wait readiness
+
+Front peut fetch avant que sidecar ait fini de `bind()`. Pas de retry, juste `console.warn`.
+
+**Fix** : sidecar émet `backend_ready` event quand le log contient `Server listening`. Front bloque les premiers calls jusque-là.
+
+**Effort** : 1 h (Rust event + front listen).
+
+---
+
+#### H3 · `server.ts` CORS regex Vercel preview trop permissive
+
+```ts
+/^https:\/\/collab-talk(-[\w-]+)?\.vercel\.app$/
+```
+
+Matche n'importe quel `collab-talk-anything.vercel.app`. Si tu renommes le projet Vercel sans purger, un autre user Vercel peut créer `collab-talk-evil` et passer la check.
+
+**Fix** : whitelist exacte :
+```ts
+const VERCEL_ALLOW = new Set([
+  'https://collab-talk.vercel.app',
+  // preview URLs spécifiques ajoutées manuellement si besoin
+]);
+if (VERCEL_ALLOW.has(origin)) return cb(null, true);
+```
+
+**Effort** : 5 min.
+
+---
+
+#### H4 · `tray.rs` `stop_backend` pas graceful — `child.kill()` = SIGKILL
+
+Fastify ne ferme pas les connexions proprement. Pour MVP in-memory : pas de perte de données (rooms TTL 4 h, fichiers TTL 24 h, tout en RAM). Pour prod avec Redis : à corriger.
+
+**Fix** : SIGTERM + timeout 3 s, fallback SIGKILL.
+
+**Effort** : 30 min.
+
+---
+
+### 14.3 Medium
+
+#### M1 · Orphan sidecar si force-quit — port locked au prochain launch
+
+Tray "quit" appelle `stop_backend`, mais Task Manager kill / crash Collab.exe → sidecar orphelin (parent dead, child survit). Au prochain launch, port 47931 déjà bind → sidecar échoue.
+
+**Fix** : `child.kill_on_drop(true)` côté tokio OU spawn avec Job Object Windows (groupe de processus parent-enfant).
+
+**Effort** : 30 min Windows / 1 h cross-platform.
+
+---
+
+#### M2 · `process.cwd()` backend incertain en Tauri sidecar — uploads où ?
+
+Tauri spawn sidecar avec `cwd = parent dir de Collab.exe`. Si user installe dans `C:\Program Files\` → permission denied write `data/uploads`.
+
+**Fix** : utiliser `tauri::api::path::app_data_dir()` côté Rust :
+```rust
+let data_dir = app.path_resolver().app_data_dir().unwrap().join("uploads");
+.env("DATA_DIR", data_dir)
+```
+
+**Effort** : 15 min.
+
+---
+
+#### M3 · `download/+page.svelte` detect OS faible
+
+```ts
+if (/win/i.test(navigator.platform)) return 'windows';
+```
+
+`navigator.platform` deprecated, retourne `'Win32'` même sur Windows ARM64. Pas de détection arch → on propose le binaire x64 à un ARM (peut marcher via émulation mais sub-optimal).
+
+**Fix** :
+```ts
+const ua = await navigator.userAgentData?.getHighEntropyValues(['architecture', 'platform']);
+const isArm = ua?.architecture === 'arm';
+```
+
+Fallback `navigator.platform` si `userAgentData` indispo (Firefox / Safari).
+
+**Effort** : 30 min.
+
+---
+
+#### M4 · `tauri.conf.json` allowlist sidecar `args: true` — overkill
+
+Front peut passer arbitrary args au sidecar Node si jamais on l'utilise. Aujourd'hui non, mais future bug si refactor.
+
+**Fix** : `"args": false`.
+
+**Effort** : 1 min.
+
+---
+
+### 14.4 Low
+
+| ID | File | Issue | Action |
+|---|---|---|---|
+| L1 | `server.ts:38` | DATA_DIR write sans check permission | Try-catch + log + fallback `os.tmpdir()` |
+| L2 | (toolchain) | Pas de signature code | Acquérir cert Sectigo OV (~50€/an) post-MVP |
+| L3 | `tauri.conf.json` | `updater: { active: false }` | Activer en v1.1 avec Ed25519 (cf §10) |
+| L4 | `tauri.conf.json` | CSP `'unsafe-inline'` styles | Vendre les styles inline en classes Tailwind après build |
+
+---
+
+### 14.5 Roadmap correctif
+
+| Sprint | Bugs traités | Effort | Statut |
+|---|---|---|---|
+| **Sprint 0 (MVP demo)** | C1 Option A (port 47931) | 1 h | ✅ Livré |
+| **Sprint 1 (v1.0 release)** | C1 Option C + C2 + C3 + H1 + H2 + M2 | ~6 h | ⏳ Backlog |
+| **Sprint 2 (v1.1)** | H3 + H4 + M1 + M3 + M4 + L4 | ~3 h | ⏳ Backlog |
+| **Sprint 3 (v2.0)** | L1 + L2 + L3 + auto-update + code sign | ~8 h + 50 €/an | ⏳ Backlog |
+
+---
+
+*Audit Dernière mise à jour : juin 2026.*

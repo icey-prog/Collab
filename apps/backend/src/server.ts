@@ -29,25 +29,40 @@ import * as Y from 'yjs';
 import { randomUUID, randomBytes, createHash } from 'node:crypto';
 import { mkdirSync, createReadStream, statSync, unlinkSync, existsSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { networkInterfaces } from 'node:os';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, '..', 'data');
+// DATA_DIR : process.cwd() en prod (pkg snapshot n'a pas __dirname/import.meta);
+// peut être overridé via env (Tauri sidecar pose userData path).
+const DATA_DIR = process.env.DATA_DIR ?? join(process.cwd(), 'data');
 const UPLOAD_DIR = join(DATA_DIR, 'uploads');
 mkdirSync(UPLOAD_DIR, { recursive: true });
 
-const PORT = Number(process.env.PORT ?? 3001);
+// Port priority :
+//   1. --port=N CLI arg (Tauri sidecar spawn)
+//   2. env PORT (Fly.io)
+//   3. env COLLAB_PORT (fallback)
+//   4. 3001 (dev local)
+function parsePortArg(): number | null {
+  for (let i = 0; i < process.argv.length; i++) {
+    const a = process.argv[i];
+    if (a === '--port' && process.argv[i + 1]) return Number(process.argv[i + 1]);
+    if (a?.startsWith('--port=')) return Number(a.slice(7));
+  }
+  return null;
+}
+const PORT = parsePortArg() ?? Number(process.env.PORT ?? process.env.COLLAB_PORT ?? 3001);
 
 // CORS LAN-friendly : localhost + 192.168.* + 10.* + 172.16-31.* + ENV override
 // (déploiement cloud : exporter FRONT_ORIGIN=https://collab.exxolab.bf)
 const ENV_ORIGIN = process.env.FRONT_ORIGIN; // ex: 'https://collab.exxolab.bf'
 const LAN_RE = /^https?:\/\/(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[01])\.\d+\.\d+)(?::\d+)?$/;
-function corsOriginCheck(origin: string | undefined, cb: (err: Error | null, allow?: boolean) => void) {
+function corsOriginCheck(origin: string | undefined, cb: (err: Error | null, allow: boolean) => void): void {
   if (!origin) return cb(null, true);                       // curl / same-origin
   if (ENV_ORIGIN && origin === ENV_ORIGIN) return cb(null, true);
   if (LAN_RE.test(origin)) return cb(null, true);
+  // Vercel auto-domains (collab-talk-*.vercel.app) + main domain
+  if (/^https:\/\/collab-talk(-[\w-]+)?\.vercel\.app$/.test(origin)) return cb(null, true);
   return cb(null, false);
 }
 
@@ -114,10 +129,11 @@ app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body,
   try { done(null, JSON.parse(s)); } catch (err) { done(err as Error); }
 });
 
-await app.register(cors, { origin: corsOriginCheck, credentials: true });
-await app.register(cookie);
-await app.register(multipart, { limits: { fileSize: MAX_FILE_BYTES } });
-await app.register(staticPlugin, { root: UPLOAD_DIR, prefix: '/files/', decorateReply: false });
+// register sans top-level await (Fastify queue les routes jusqu'à app.ready())
+app.register(cors, { origin: corsOriginCheck, credentials: true });
+app.register(cookie);
+app.register(multipart, { limits: { fileSize: MAX_FILE_BYTES } });
+app.register(staticPlugin, { root: UPLOAD_DIR, prefix: '/files/', decorateReply: false });
 
 /* POST /room/create */
 app.post('/room/create', async (req, reply) => {
@@ -292,13 +308,18 @@ app.get('/', async () => ({ ok: true, service: 'collab-backend', rooms: rooms.si
 
 /* ─── Socket.io ─── */
 
-await app.listen({ port: PORT, host: '0.0.0.0' });
-const io = new IOServer(app.server, {
-  cors: { origin: corsOriginCheck, credentials: true },
-  path: '/socket.io',
-});
+// Forward declaration : io est utilisé dans les handlers ci-dessous, mais
+// instancié seulement après app.listen() (qui requiert app.server prêt).
+let io: IOServer;
 
-io.on('connection', (socket) => {
+// Bootstrap : démarre Fastify puis attache Socket.io. Pas de top-level await pour
+// permettre le bundle CJS via esbuild (sidecar Tauri).
+app.listen({ port: PORT, host: '0.0.0.0' }).then(() => {
+  io = new IOServer(app.server, {
+    cors: { origin: corsOriginCheck, credentials: true },
+    path: '/socket.io',
+  });
+  io.on('connection', (socket) => {
   let joinedRoom: string | null = null;
 
   socket.on('join:room', ({ roomId }: { roomId: string }) => {
@@ -411,6 +432,12 @@ io.on('connection', (socket) => {
       io.to(joinedRoom).emit('participants:count', { count: r.participants.size });
     }
   });
+  });
+
+  console.log(`[collab-backend] http://localhost:${PORT}  |  CORS: localhost + LAN${ENV_ORIGIN ? ' + ' + ENV_ORIGIN : ''}  |  Max ${MAX_PARTICIPANTS} participants/room`);
+}).catch((err) => {
+  console.error('[collab-backend] failed to start:', err);
+  process.exit(1);
 });
 
 /* TTL janitor — runs every minute, drops expired rooms */
@@ -426,5 +453,3 @@ setInterval(() => {
     });
   }
 }, 60_000);
-
-console.log(`[collab-backend] http://localhost:${PORT}  |  CORS: localhost + LAN${ENV_ORIGIN ? ' + ' + ENV_ORIGIN : ''}  |  Max ${MAX_PARTICIPANTS} participants/room`);

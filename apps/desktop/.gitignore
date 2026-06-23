@@ -1,0 +1,15 @@
+node_modules/
+src-tauri/target/
+src-tauri/binaries/*.exe
+src-tauri/binaries/collab-backend-*
+src-tauri/icons/Square*.png
+src-tauri/icons/StoreLogo.png
+
+# Working files (sources d'icônes intermédiaires)
+icon-source-square.png
+icon-source-v2.png
+portable-stage/
+
+# OS
+.DS_Store
+Thumbs.db

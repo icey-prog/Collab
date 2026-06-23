@@ -1,0 +1,107 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "build": {
+    "beforeDevCommand": "npm --prefix ../frontend run dev",
+    "beforeBuildCommand": "npm --prefix ../frontend run build",
+    "devPath": "http://localhost:5173",
+    "distDir": "../../frontend/build",
+    "withGlobalTauri": true
+  },
+  "package": {
+    "productName": "Collab",
+    "version": "1.0.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": false,
+      "shell": {
+        "all": false,
+        "open": true,
+        "sidecar": true,
+        "scope": [
+          { "name": "binaries/collab-backend", "sidecar": true, "args": true }
+        ]
+      },
+      "window": {
+        "all": false,
+        "close": true,
+        "hide": true,
+        "show": true,
+        "setFocus": true,
+        "setTitle": true,
+        "startDragging": true
+      },
+      "notification": { "all": true }
+    },
+    "bundle": {
+      "active": true,
+      "category": "Productivity",
+      "copyright": "© 2026 EXXOLAB",
+      "identifier": "bf.exxolab.collab",
+      "shortDescription": "Collab — espace collaboratif éphémère",
+      "longDescription": "Bloc-notes, fichiers et Q&A en temps réel pour sessions courtes (3-4 participants) sur LAN ou via Internet.",
+      "publisher": "EXXOLAB Digital Agency",
+      "icon": [
+        "icons/32x32.png",
+        "icons/128x128.png",
+        "icons/128x128@2x.png",
+        "icons/icon.icns",
+        "icons/icon.ico"
+      ],
+      "externalBin": [
+        "binaries/collab-backend"
+      ],
+      "resources": [],
+      "targets": "all",
+      "windows": {
+        "certificateThumbprint": null,
+        "digestAlgorithm": "sha256",
+        "timestampUrl": "",
+        "wix": {
+          "language": ["en-US", "fr-FR"]
+        },
+        "nsis": {
+          "installerIcon": "icons/icon.ico",
+          "displayLanguageSelector": false,
+          "installMode": "currentUser",
+          "languages": ["English", "French"]
+        }
+      },
+      "macOS": {
+        "frameworks": [],
+        "minimumSystemVersion": "10.15"
+      },
+      "deb": {
+        "depends": []
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    },
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://localhost:47931 ws://localhost:47931 http://127.0.0.1:47931 ws://127.0.0.1:47931 https://collab-talk.fly.dev wss://collab-talk.fly.dev; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; script-src 'self'"
+    },
+    "windows": [
+      {
+        "title": "Collab",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "transparent": false,
+        "url": "index.html"
+      }
+    ],
+    "systemTray": {
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true,
+      "menuOnLeftClick": false
+    },
+    "updater": {
+      "active": false
+    }
+  }
+}
