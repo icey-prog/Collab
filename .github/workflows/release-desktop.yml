@@ -112,14 +112,9 @@ jobs:
 
           OUT="${BINDIR}/collab-backend-${TRIPLE}${EXT}"
 
-          # Écriture du fichier de config sans indentation parasite
-          cat > sea-config.json << 'SEAEOF'
-{
-  "main": "dist/bundle.cjs",
-  "output": "sea-prep.blob",
-  "disableExperimentalSEAWarning": true
-}
-SEAEOF
+          # Écriture de la config SEA (printf évite le heredoc qui casse le YAML)
+          printf '{"main":"dist/bundle.cjs","output":"sea-prep.blob","disableExperimentalSEAWarning":true}\n' \
+            > sea-config.json
 
           node --experimental-sea-config sea-config.json
 
