@@ -180,9 +180,9 @@ jobs:
           RELDIR="$GITHUB_WORKSPACE/apps/desktop/src-tauri/target/release"
           APPDIR="$GITHUB_WORKSPACE/Collab.AppDir"
 
-          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-gtk/releases/download/continuous/linuxdeploy-plugin-gtk-x86_64.AppImage
-          chmod +x linuxdeploy*.AppImage
+          curl -fSL --retry 3 -o linuxdeploy-x86_64.AppImage \
+            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage
 
           mkdir -p "$APPDIR/usr/bin"
           mkdir -p "$APPDIR/usr/share/applications"
@@ -199,13 +199,13 @@ jobs:
             > "$APPDIR/collab.desktop"
           cp "$APPDIR/collab.desktop" "$APPDIR/usr/share/applications/"
 
-          APPIMAGE_EXTRACT_AND_RUN=1 DEPLOY_GTK_VERSION=3 \
-            ./linuxdeploy-x86_64.AppImage \
-              --appdir "$APPDIR" \
-              --plugin gtk \
-              --output appimage
+          # linuxdeploy bundle toutes les libs via ldd (webkit2gtk inclus)
+          APPIMAGE_EXTRACT_AND_RUN=1 ./linuxdeploy-x86_64.AppImage \
+            --appdir "$APPDIR" \
+            --output appimage
 
-          mv Collab*.AppImage "$GITHUB_WORKSPACE/Collab-linux-x64.AppImage"
+          BUILT=$(find . -maxdepth 1 -name "*.AppImage" ! -name "linuxdeploy*" | head -1)
+          mv "$BUILT" "$GITHUB_WORKSPACE/Collab-linux-x64.AppImage"
           chmod +x "$GITHUB_WORKSPACE/Collab-linux-x64.AppImage"
           ls -lh "$GITHUB_WORKSPACE/Collab-linux-x64.AppImage"
 
