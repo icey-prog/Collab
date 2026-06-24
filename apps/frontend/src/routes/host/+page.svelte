@@ -66,30 +66,30 @@
 </div>
 
 <style>
-  .page { min-height: 100vh; background: var(--paper); position: relative; }
+  .page { min-height: 100%; background: var(--paper); position: relative; }
   .viewport {
-    min-height: 100vh; display: flex; align-items: center; justify-content: center;
-    padding: 80px 20px 60px;
+    min-height: 100%; display: flex; align-items: center; justify-content: center;
+    padding: 36px 20px 36px;
   }
-  .col { width: 480px; max-width: 100%; display: flex; flex-direction: column; }
+  .col { width: 460px; max-width: 100%; display: flex; flex-direction: column; }
 
   .hero {
     font-family: var(--font-head); font-weight: 700;
-    font-size: clamp(40px, 7vw, 56px); line-height: 1.05;
-    letter-spacing: -0.02em; color: var(--navy); margin: 16px 0 0;
+    font-size: clamp(32px, 5vw, 44px); line-height: 1.05;
+    letter-spacing: -0.02em; color: var(--navy); margin: 12px 0 0;
   }
   .hero .hl {
     color: var(--accent-ink); white-space: nowrap;
     background: var(--chartreuse); border-radius: 7px;
     padding: 2px 10px; display: inline-block;
   }
-  .sub { font-size: 15px; color: var(--navy-55); margin: 20px 0 32px; }
+  .sub { font-size: 14px; color: var(--navy-55); margin: 14px 0 20px; }
 
   .tabs {
     display: inline-flex; gap: 4px;
     background: var(--navy-06); padding: 4px;
     border-radius: var(--r-pill);
-    margin-bottom: 28px;
+    margin-bottom: 18px;
     align-self: flex-start;
   }
   .tab {
@@ -108,14 +108,14 @@
 
   .panel {
     background: var(--surface); border: 1px solid var(--navy-10);
-    border-radius: var(--r-lg); padding: 28px;
+    border-radius: var(--r-lg); padding: 22px;
     box-shadow: var(--shadow-card);
   }
 
   .foot {
-    position: absolute; bottom: 24px; left: 50%;
+    position: absolute; bottom: 14px; left: 50%;
     transform: translateX(-50%);
-    font-family: var(--font-mono); font-size: 11px;
+    font-family: var(--font-mono); font-size: 10px;
     color: var(--navy-40);
   }
 

@@ -295,7 +295,7 @@
 
 <style>
   .room-shell {
-    display: flex; height: 100vh; background: var(--paper); overflow: hidden;
+    display: flex; height: 100%; background: var(--paper); overflow: hidden;
   }
   .room-shell.dim .main { opacity: 0.7; pointer-events: none; }
 
@@ -404,9 +404,9 @@
     50% { opacity: 1; }
   }
 
-  /* ── Module area ── */
+  /* ── Module area — desktop polish, padding réduit ── */
   .module {
-    flex: 1; padding: 24px 28px; overflow: auto; min-height: 0;
+    flex: 1; padding: 16px 20px; overflow: auto; min-height: 0;
     display: flex; flex-direction: column;
     background: var(--paper);
   }

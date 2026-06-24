@@ -14,6 +14,11 @@ const config = {
     }),
     alias: { $lib: 'src/lib' },
 
+    // B13 fix : Tauri WebView (tauri.localhost) ne supporte pas l'enregistrement
+    // de Service Worker → on désactive l'auto-register et on l'enregistre
+    // manuellement dans +layout.svelte uniquement si on est en browser (pas Tauri).
+    serviceWorker: { register: false },
+
     // Lot J — Content Security Policy.
     // SvelteKit injects per-build hashes for inline scripts/styles automatically.
     // 'self'              = own origin (app + statics)

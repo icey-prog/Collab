@@ -107,7 +107,39 @@ html, body {
   background: var(--paper);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  /* B14 desktop polish : viewport fixe Tauri/desktop, scrollbar n'apparait
+     que sur scroll réel (overflow:auto) avec style slim ci-dessous. */
+  height: 100%;
+  overflow: hidden;          /* le défilement se fait dans les containers internes */
 }
+body > div:first-of-type { height: 100%; overflow: auto; }
+
+/* ============================================================
+   Scrollbars Claude-style — thin, subtle, on-hover reveal
+   ============================================================ */
+* {
+  scrollbar-width: thin;                          /* Firefox */
+  scrollbar-color: var(--navy-12) transparent;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  background: transparent;
+}
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 8px;
+  transition: background .15s;
+}
+*:hover::-webkit-scrollbar-thumb,
+*:focus-within::-webkit-scrollbar-thumb {
+  background: var(--navy-12);
+}
+*:hover::-webkit-scrollbar-thumb:hover {
+  background: var(--navy-25);
+}
+::-webkit-scrollbar-corner { background: transparent; }
 
 /* Subtle paper noise */
 .noise::before {
