@@ -112,12 +112,11 @@ jobs:
         run: npm run build
 
       - name: Build Tauri app
-        working-directory: apps/desktop
+        working-directory: apps/desktop/src-tauri
         env:
           CARGO_HTTP_CHECK_REVOKE: false   # Windows SSL workaround
-          TAURI_PRIVATE_KEY: ''            # pas de mise à jour auto
         shell: bash
-        run: npx tauri build --no-bundle ${{ matrix.tauri_target }}
+        run: cargo build --release --features custom-protocol ${{ matrix.tauri_target }}
 
       # Tauri --no-bundle compile le binaire mais ne copie pas le sidecar → copie manuelle
       - name: Copy sidecar alongside Tauri binary
