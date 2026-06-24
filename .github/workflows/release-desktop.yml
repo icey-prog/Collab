@@ -198,15 +198,8 @@ jobs:
           cp "apps/desktop/src-tauri/icons/128x128.png" \
              "$APPDIR/usr/share/icons/hicolor/256x256/apps/collab.png"
 
-          cat > "$APPDIR/collab.desktop" << 'DESKTOP'
-[Desktop Entry]
-Name=Collab
-Exec=collab
-Icon=collab
-Type=Application
-Categories=Network;
-Version=1.0
-DESKTOP
+          printf '[Desktop Entry]\nName=Collab\nExec=collab\nIcon=collab\nType=Application\nCategories=Network;\nVersion=1.0\n' \
+            > "$APPDIR/collab.desktop"
           cp "$APPDIR/collab.desktop" "$APPDIR/usr/share/applications/"
 
           APPIMAGE_EXTRACT_AND_RUN=1 DEPLOY_GTK_VERSION=3 \
