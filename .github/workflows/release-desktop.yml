@@ -151,21 +151,41 @@ jobs:
         working-directory: apps/frontend
         run: npm run build
 
-      # ── Compilation Rust (cargo build) ────────────────────────────────────
-      - name: Build Tauri app (cargo)
+      # ── Linux : tauri build --bundles appimage ────────────────────────────────
+      # Utilise le bundler officiel Tauri qui gère webkit2gtk (helpers inclus)
+      # via son fork du plugin GTK (script bash, URL stable).
+      - name: Build Tauri AppImage (Linux)
+        if: matrix.os_name == 'linux'
+        working-directory: apps/desktop
+        env:
+          CARGO_HTTP_CHECK_REVOKE: false
+          TAURI_PRIVATE_KEY: dummy
+          TAURI_KEY_PASSWORD: dummy
+        shell: bash
+        run: |
+          echo "=== Sidecar dans binaries/ ==="
+          ls -lh "$GITHUB_WORKSPACE/apps/desktop/src-tauri/binaries/"
+          npx tauri build --bundles appimage
+          APPIMAGE=$(find src-tauri/target/release/bundle/appimage -name "*.AppImage" | head -1)
+          echo "AppImage : $APPIMAGE"
+          cp "$APPIMAGE" "$GITHUB_WORKSPACE/Collab-linux-x64.AppImage"
+          ls -lh "$GITHUB_WORKSPACE/Collab-linux-x64.AppImage"
+
+      # ── Windows + macOS : cargo build --release ────────────────────────────
+      - name: Build Tauri app (cargo — Windows/macOS)
+        if: matrix.os_name != 'linux'
         working-directory: apps/desktop/src-tauri
         env:
           CARGO_HTTP_CHECK_REVOKE: false
         shell: bash
         run: |
-          echo "=== Sidecar dans binaries/ avant cargo build ==="
+          echo "=== Sidecar dans binaries/ ==="
           ls -lh "$GITHUB_WORKSPACE/apps/desktop/src-tauri/binaries/"
           cargo build --release --features custom-protocol ${{ matrix.tauri_target }}
 
-      # ── Copie sidecar dans release dir (NOM AVEC TRIPLE conservé) ─────────
-      # BUG FIX #1/#3 : Tauri v1 cherche {exe_dir}/collab-backend-{triple}[.exe]
-      # Le nom sans triple est invisible pour le sidecar resolver.
-      - name: Copy sidecar to release dir
+      # ── Copie sidecar dans release dir avec triple (Windows/macOS) ────────
+      - name: Copy sidecar to release dir (Windows/macOS)
+        if: matrix.os_name != 'linux'
         shell: bash
         run: |
           TRIPLE="${{ matrix.triple }}"
@@ -175,82 +195,7 @@ jobs:
           DEST="${RELDIR}/collab-backend-${TRIPLE}${EXT}"
           cp "$SRC" "$DEST"
           chmod +x "$DEST" 2>/dev/null || true
-          echo "=== Sidecar dans release dir ==="
           ls -lh "$DEST"
-
-      # ─── Linux : AppImage via linuxdeploy (webkit2gtk bundlé) ─────────────
-      - name: Create AppImage (Linux)
-        if: matrix.os_name == 'linux'
-        shell: bash
-        run: |
-          TRIPLE="${{ matrix.triple }}"
-          RELDIR="$GITHUB_WORKSPACE/apps/desktop/src-tauri/target/release"
-          APPDIR="$GITHUB_WORKSPACE/Collab.AppDir"
-
-          curl -fSL --retry 3 -o linuxdeploy-x86_64.AppImage \
-            https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          chmod +x linuxdeploy-x86_64.AppImage
-
-          mkdir -p "$APPDIR/usr/bin"
-          mkdir -p "$APPDIR/usr/share/applications"
-          mkdir -p "$APPDIR/usr/share/icons/hicolor/256x256/apps"
-
-          # Binaire principal Tauri
-          cp "$RELDIR/collab-desktop" "$APPDIR/usr/bin/collab"
-
-          # BUG FIX #3 : conserver le triple pour que Tauri le trouve au runtime
-          cp "$RELDIR/collab-backend-${TRIPLE}" "$APPDIR/usr/bin/collab-backend-${TRIPLE}"
-
-          chmod +x "$APPDIR/usr/bin/"*
-
-          cp "apps/desktop/src-tauri/icons/128x128.png" \
-             "$APPDIR/usr/share/icons/hicolor/256x256/apps/collab.png"
-
-          printf '[Desktop Entry]\nName=Collab\nExec=collab\nIcon=collab\nType=Application\nCategories=Network;\nVersion=1.0\n' \
-            > "$APPDIR/collab.desktop"
-          cp "$APPDIR/collab.desktop" "$APPDIR/usr/share/applications/"
-
-          echo "=== Contenu AppDir/usr/bin/ ==="
-          ls -lh "$APPDIR/usr/bin/"
-
-          # Étape 1 : linuxdeploy bundle les .so via ldd (webkit2gtk-4.0 inclus)
-          # Sans --output : peuple seulement l'AppDir, ne package pas encore
-          APPIMAGE_EXTRACT_AND_RUN=1 ./linuxdeploy-x86_64.AppImage --appdir "$APPDIR"
-
-          # Étape 2 : ajouter les binaires helpers webkit2gtk-4.0
-          # libwebkit2gtk-4.0.so cherche WebKitNetworkProcess/WebKitWebProcess à un
-          # chemin ABSOLU compilé en dur. Sans ces helpers dans l'AppImage, l'app
-          # crashe sur Ubuntu 24.04 qui n'a que webkit2gtk-4.1.
-          # WEBKIT_EXEC_PATH permet à webkit de les trouver dans l'AppImage.
-          WEBKIT_SRC="/usr/lib/x86_64-linux-gnu/webkit2gtk-4.0"
-          WEBKIT_DST="$APPDIR/usr/lib/x86_64-linux-gnu/webkit2gtk-4.0"
-          mkdir -p "$WEBKIT_DST"
-          for helper in WebKitNetworkProcess WebKitWebProcess WebKitGPUProcess; do
-            [ -f "$WEBKIT_SRC/$helper" ] && \
-              cp "$WEBKIT_SRC/$helper" "$WEBKIT_DST/$helper" && \
-              chmod +x "$WEBKIT_DST/$helper" && \
-              echo "Bundled: $helper"
-          done
-          [ -d "$WEBKIT_SRC/injected-bundle" ] && \
-            cp -r "$WEBKIT_SRC/injected-bundle" "$WEBKIT_DST/"
-
-          echo "=== Helpers webkit2gtk dans AppImage ==="
-          ls -lh "$WEBKIT_DST/"
-
-          # Étape 3 : injecter WEBKIT_EXEC_PATH dans l'AppRun généré par linuxdeploy
-          sed -i '/^exec /i export WEBKIT_EXEC_PATH="${APPDIR}/usr/lib/x86_64-linux-gnu/webkit2gtk-4.0"' \
-            "$APPDIR/AppRun"
-          echo "=== AppRun (tail) ==="
-          tail -5 "$APPDIR/AppRun"
-
-          # Étape 4 : packager avec appimagetool
-          curl -fSL --retry 3 -o appimagetool.AppImage \
-            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-          chmod +x appimagetool.AppImage
-          APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool.AppImage \
-            "$APPDIR" "$GITHUB_WORKSPACE/Collab-linux-x64.AppImage"
-
-          ls -lh "$GITHUB_WORKSPACE/Collab-linux-x64.AppImage"
 
       # ─── Windows : ZIP portable ───────────────────────────────────────────
       # BUG FIX #1 : inclure le sidecar avec le triple dans le ZIP
