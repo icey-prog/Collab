@@ -213,20 +213,43 @@ jobs:
           echo "=== Contenu AppDir/usr/bin/ ==="
           ls -lh "$APPDIR/usr/bin/"
 
-          # linuxdeploy bundle toutes les libs via ldd (webkit2gtk-4.0 inclus)
-          APPIMAGE_EXTRACT_AND_RUN=1 ./linuxdeploy-x86_64.AppImage \
-            --appdir "$APPDIR" \
-            --output appimage
+          # Étape 1 : linuxdeploy bundle les .so via ldd (webkit2gtk-4.0 inclus)
+          # Sans --output : peuple seulement l'AppDir, ne package pas encore
+          APPIMAGE_EXTRACT_AND_RUN=1 ./linuxdeploy-x86_64.AppImage --appdir "$APPDIR"
 
-          # BUG FIX #4 : vérifier que l'AppImage a bien été créée
-          BUILT=$(find . -maxdepth 1 -name "*.AppImage" ! -name "linuxdeploy*" | head -1)
-          if [ -z "$BUILT" ]; then
-            echo "ERREUR : linuxdeploy n'a pas créé d'AppImage !"
-            exit 1
-          fi
+          # Étape 2 : ajouter les binaires helpers webkit2gtk-4.0
+          # libwebkit2gtk-4.0.so cherche WebKitNetworkProcess/WebKitWebProcess à un
+          # chemin ABSOLU compilé en dur. Sans ces helpers dans l'AppImage, l'app
+          # crashe sur Ubuntu 24.04 qui n'a que webkit2gtk-4.1.
+          # WEBKIT_EXEC_PATH permet à webkit de les trouver dans l'AppImage.
+          WEBKIT_SRC="/usr/lib/x86_64-linux-gnu/webkit2gtk-4.0"
+          WEBKIT_DST="$APPDIR/usr/lib/x86_64-linux-gnu/webkit2gtk-4.0"
+          mkdir -p "$WEBKIT_DST"
+          for helper in WebKitNetworkProcess WebKitWebProcess WebKitGPUProcess; do
+            [ -f "$WEBKIT_SRC/$helper" ] && \
+              cp "$WEBKIT_SRC/$helper" "$WEBKIT_DST/$helper" && \
+              chmod +x "$WEBKIT_DST/$helper" && \
+              echo "Bundled: $helper"
+          done
+          [ -d "$WEBKIT_SRC/injected-bundle" ] && \
+            cp -r "$WEBKIT_SRC/injected-bundle" "$WEBKIT_DST/"
 
-          mv "$BUILT" "$GITHUB_WORKSPACE/Collab-linux-x64.AppImage"
-          chmod +x "$GITHUB_WORKSPACE/Collab-linux-x64.AppImage"
+          echo "=== Helpers webkit2gtk dans AppImage ==="
+          ls -lh "$WEBKIT_DST/"
+
+          # Étape 3 : injecter WEBKIT_EXEC_PATH dans l'AppRun généré par linuxdeploy
+          sed -i '/^exec /i export WEBKIT_EXEC_PATH="${APPDIR}/usr/lib/x86_64-linux-gnu/webkit2gtk-4.0"' \
+            "$APPDIR/AppRun"
+          echo "=== AppRun (tail) ==="
+          tail -5 "$APPDIR/AppRun"
+
+          # Étape 4 : packager avec appimagetool
+          curl -fSL --retry 3 -o appimagetool.AppImage \
+            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool.AppImage
+          APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool.AppImage \
+            "$APPDIR" "$GITHUB_WORKSPACE/Collab-linux-x64.AppImage"
+
           ls -lh "$GITHUB_WORKSPACE/Collab-linux-x64.AppImage"
 
       # ─── Windows : ZIP portable ───────────────────────────────────────────
