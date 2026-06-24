@@ -82,13 +82,26 @@ pub fn diag_snapshot(
   let backend_running = state.0.lock().map(|g| g.is_some()).unwrap_or(false);
   let log_path = get_log_path(&app);
 
-  // Tail tasklist pour vérifier processes Collab
-  let tasklist = std::process::Command::new("tasklist")
-    .args(["/FI", "IMAGENAME eq collab-backend.exe", "/FO", "CSV", "/NH"])
-    .output()
-    .ok()
-    .and_then(|o| String::from_utf8(o.stdout).ok())
-    .unwrap_or_default();
+  let tasklist = {
+    #[cfg(target_os = "windows")]
+    {
+      std::process::Command::new("tasklist")
+        .args(["/FI", "IMAGENAME eq collab-backend.exe", "/FO", "CSV", "/NH"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .unwrap_or_default()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+      std::process::Command::new("sh")
+        .args(["-c", "ps aux | grep '[c]ollab-backend'"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .unwrap_or_default()
+    }
+  };
 
   serde_json::json!({
     "port": COLLAB_PORT,
@@ -106,37 +119,77 @@ fn is_port_free(port: u16) -> bool {
   std::net::TcpListener::bind(format!("127.0.0.1:{}", port)).is_ok()
 }
 
-/// Tue tous les processus occupant le port donné via netstat (Windows).
+/// Tue tous les processus occupant le port donné (cross-plateforme).
 /// Retourne le nombre de processus tués.
 fn kill_processes_on_port(port: u16) -> usize {
-  let output = std::process::Command::new("netstat")
-    .args(["-ano"])
-    .output();
-
-  let Ok(out) = output else { return 0 };
-  let stdout = String::from_utf8_lossy(&out.stdout);
-
-  let port_str = format!(":{}", port);
-  let mut killed = 0usize;
-
-  for line in stdout.lines() {
-    // Filtre les lignes LISTENING sur ce port
-    if !line.contains(&port_str) || !line.contains("LISTENING") {
-      continue;
+  #[cfg(target_os = "windows")]
+  {
+    let output = std::process::Command::new("netstat").args(["-ano"]).output();
+    let Ok(out) = output else { return 0 };
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let port_str = format!(":{}", port);
+    let mut killed = 0usize;
+    for line in stdout.lines() {
+      if !line.contains(&port_str) || !line.contains("LISTENING") { continue; }
+      let pid_str = line.split_whitespace().last().unwrap_or("0");
+      let pid: u32 = pid_str.parse().unwrap_or(0);
+      if pid == 0 { continue; }
+      let _ = std::process::Command::new("taskkill")
+        .args(["/F", "/PID", &pid.to_string()])
+        .output();
+      killed += 1;
+      eprintln!("[sidecar] killed zombie PID {} on port {}", pid, port);
     }
-    // Dernier token = PID
-    let pid_str = line.split_whitespace().last().unwrap_or("0");
-    let pid: u32 = pid_str.parse().unwrap_or(0);
-    if pid == 0 { continue; }
-
-    // Tente de tuer via taskkill /F /PID
-    let _ = std::process::Command::new("taskkill")
-      .args(["/F", "/PID", &pid.to_string()])
-      .output();
-    killed += 1;
-    eprintln!("[sidecar] killed zombie PID {} on port {}", pid, port);
+    killed
   }
-  killed
+  #[cfg(not(target_os = "windows"))]
+  {
+    // Essaie ss d'abord (iproute2), repli sur lsof
+    let pids = find_pids_on_port_unix(port);
+    let mut killed = 0usize;
+    for pid in pids {
+      let _ = std::process::Command::new("kill").args(["-9", &pid.to_string()]).output();
+      killed += 1;
+      eprintln!("[sidecar] killed zombie PID {} on port {}", pid, port);
+    }
+    killed
+  }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn find_pids_on_port_unix(port: u16) -> Vec<u32> {
+  // ss -tlnp sport = :<port>  — disponible sur toutes les distros modernes
+  if let Ok(out) = std::process::Command::new("ss")
+    .args(["-tlnp", &format!("sport = :{}", port)])
+    .output()
+  {
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let pids: Vec<u32> = stdout.lines()
+      .filter_map(|line| extract_pid_from_ss_line(line))
+      .collect();
+    if !pids.is_empty() { return pids; }
+  }
+  // Repli : lsof -ti :<port>
+  if let Ok(out) = std::process::Command::new("lsof")
+    .args(["-ti", &format!(":{}", port)])
+    .output()
+  {
+    return String::from_utf8_lossy(&out.stdout)
+      .lines()
+      .filter_map(|l| l.trim().parse::<u32>().ok())
+      .collect();
+  }
+  vec![]
+}
+
+#[cfg(not(target_os = "windows"))]
+fn extract_pid_from_ss_line(line: &str) -> Option<u32> {
+  // users:(("collab-backend",pid=1234,fd=5))
+  let start = line.find("pid=")? + 4;
+  let end = line[start..].find(|c: char| !c.is_ascii_digit())
+    .map(|i| start + i)
+    .unwrap_or(line.len());
+  line[start..end].parse().ok()
 }
 
 #[tauri::command]

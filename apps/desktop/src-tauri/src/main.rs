@@ -13,21 +13,37 @@ use std::sync::Mutex;
 use std::fs;
 use std::path::PathBuf;
 
+/// Vérifie cross-plateforme si un PID est toujours en vie.
+fn is_pid_alive(pid: u32) -> bool {
+  #[cfg(target_os = "windows")]
+  {
+    std::process::Command::new("tasklist")
+      .args(["/FI", &format!("PID eq {}", pid), "/FI", "IMAGENAME eq Collab.exe", "/FO", "CSV", "/NH"])
+      .output()
+      .ok()
+      .and_then(|o| String::from_utf8(o.stdout).ok())
+      .map(|s| s.contains(&pid.to_string()))
+      .unwrap_or(false)
+  }
+  #[cfg(target_os = "linux")]
+  {
+    std::path::Path::new(&format!("/proc/{}", pid)).exists()
+  }
+  #[cfg(target_os = "macos")]
+  {
+    std::process::Command::new("kill")
+      .args(["-0", &pid.to_string()])
+      .output()
+      .map(|o| o.status.success())
+      .unwrap_or(false)
+  }
+}
+
 /// B6 fix : empêche deuxième instance via PID file dans app_data_dir.
-/// Si le fichier existe ET le PID référence un process Collab.exe vivant,
-/// la 2e instance refuse de démarrer.
 fn enforce_single_instance(pid_path: &PathBuf) -> Result<(), String> {
   if let Ok(content) = fs::read_to_string(pid_path) {
     if let Ok(pid) = content.trim().parse::<u32>() {
-      // Check si ce PID tourne ET correspond à Collab.exe
-      let alive = std::process::Command::new("tasklist")
-        .args(["/FI", &format!("PID eq {}", pid), "/FI", "IMAGENAME eq Collab.exe", "/FO", "CSV", "/NH"])
-        .output()
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.contains(&pid.to_string()))
-        .unwrap_or(false);
-      if alive {
+      if is_pid_alive(pid) {
         return Err(format!(
           "Collab tourne déjà (PID {}). Ouvre la fenêtre depuis l'icône système (tray) au lieu de relancer.",
           pid
