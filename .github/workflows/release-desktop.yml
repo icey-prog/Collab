@@ -143,11 +143,8 @@ jobs:
           fi
 
           chmod +x "$OUT" 2>/dev/null || true
-
           echo "=== Sidecar créé ==="
           ls -lh "$OUT"
-          echo "=== Test rapide ==="
-          "$OUT" --version 2>&1 | head -3 || true
 
       # ── Build frontend SvelteKit ───────────────────────────────────────
       - name: Build frontend
