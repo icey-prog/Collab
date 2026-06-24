@@ -87,8 +87,10 @@ jobs:
         working-directory: apps/backend
         run: npm install
 
+      # FIX: Ajout de shell: bash explicite pour éviter les problèmes PowerShell sur Windows
       - name: Build backend bundle (esbuild CJS)
         working-directory: apps/backend
+        shell: bash
         run: |
           npm install --save-dev esbuild
           npm run build
@@ -96,8 +98,10 @@ jobs:
             --target=node22 --outfile=dist/bundle.cjs \
             --external:bufferutil --external:utf-8-validate
 
+      # FIX: Ajout de shell: bash explicite
       - name: Build sidecar binary (pkg)
         working-directory: apps/desktop
+        shell: bash
         run: |
           pkg ../backend/dist/bundle.cjs \
             --targets ${{ matrix.pkg_target }} \
@@ -107,6 +111,7 @@ jobs:
         working-directory: apps/frontend
         run: npm run build
 
+      # FIX: Garder le cd explicite car le working-directory est déjà apps/desktop
       - name: Build Tauri app
         working-directory: apps/desktop
         env:
@@ -124,7 +129,7 @@ jobs:
           $out = "$env:GITHUB_WORKSPACE/Collab-Portable-x64.zip"
           # Tauri may name the binary collab-desktop.exe; copy to Collab.exe
           $src = if (Test-Path "collab-desktop.exe") { "collab-desktop.exe" } else { "Collab.exe" }
-          [System.IO.File]::Copy($src, "Collab.exe", $true)
+          Copy-Item $src "Collab.exe" -Force
           Compress-Archive -Path "Collab.exe","collab-backend.exe" -DestinationPath $out -Force
           Get-Item $out | Format-Table Name, Length
 
