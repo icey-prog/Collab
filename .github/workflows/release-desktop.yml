@@ -105,7 +105,9 @@ jobs:
         run: |
           pkg ../backend/dist/bundle.cjs \
             --targets ${{ matrix.pkg_target }} \
-            --output src-tauri/binaries/collab-backend-${{ matrix.triple }}${{ matrix.sidecar_ext }}
+            --output src-tauri/binaries/collab-backend-${{ matrix.triple }}
+          echo "--- binaries/ après pkg ---"
+          ls -lh src-tauri/binaries/
 
       - name: Build frontend (SvelteKit static)
         working-directory: apps/frontend
