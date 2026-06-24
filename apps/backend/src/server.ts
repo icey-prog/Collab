@@ -61,6 +61,10 @@ function corsOriginCheck(origin: string | undefined, cb: (err: Error | null, all
   if (!origin) return cb(null, true);                       // curl / same-origin
   if (ENV_ORIGIN && origin === ENV_ORIGIN) return cb(null, true);
   if (LAN_RE.test(origin)) return cb(null, true);
+  // Tauri WebView custom-protocol origin (Windows: https://tauri.localhost,
+  // macOS/Linux: tauri://localhost). Pas matché par LAN_RE à cause du sous-domaine.
+  if (/^https?:\/\/tauri\.localhost$/.test(origin)) return cb(null, true);
+  if (origin === 'tauri://localhost') return cb(null, true);
   // Vercel auto-domains (collab-talk-*.vercel.app) + main domain
   if (/^https:\/\/collab-talk(-[\w-]+)?\.vercel\.app$/.test(origin)) return cb(null, true);
   return cb(null, false);
