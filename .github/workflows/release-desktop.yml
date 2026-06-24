@@ -111,15 +111,27 @@ jobs:
         working-directory: apps/frontend
         run: npm run build
 
-      - name: Build Tauri app
+      # Linux : tauri build produit une AppImage auto-suffisante (webkit bundlé)
+      # Le sidecar est copié automatiquement par tauri-bundler depuis binaries/
+      - name: Build Tauri AppImage (Linux)
+        if: matrix.os_name == 'linux'
+        working-directory: apps/desktop
+        shell: bash
+        run: |
+          npx tauri build --bundles appimage \
+            --config '{"build":{"beforeBuildCommand":""}}'
+
+      # Windows / macOS : cargo build suffit, le sidecar est copié manuellement
+      - name: Build Tauri app (Windows / macOS)
+        if: matrix.os_name != 'linux'
         working-directory: apps/desktop/src-tauri
         env:
-          CARGO_HTTP_CHECK_REVOKE: false   # Windows SSL workaround
+          CARGO_HTTP_CHECK_REVOKE: false
         shell: bash
         run: cargo build --release --features custom-protocol ${{ matrix.tauri_target }}
 
-      # Tauri --no-bundle compile le binaire mais ne copie pas le sidecar → copie manuelle
-      - name: Copy sidecar alongside Tauri binary
+      - name: Copy sidecar alongside Tauri binary (Windows / macOS)
+        if: matrix.os_name != 'linux'
         shell: bash
         run: |
           SRC="apps/desktop/src-tauri/binaries/collab-backend-${{ matrix.triple }}${{ matrix.sidecar_ext }}"
@@ -130,8 +142,18 @@ jobs:
           fi
           cp "$SRC" "$DEST"
           chmod +x "$DEST" 2>/dev/null || true
-          echo "Sidecar copié : $SRC → $DEST"
           ls -lh "$DEST"
+
+      # ─── Linux : AppImage auto-suffisante (webkit embarqué) ────────────
+      - name: Pack Linux AppImage
+        if: matrix.os_name == 'linux'
+        run: |
+          APPIMAGE=$(find apps/desktop/src-tauri/target/release/bundle/appimage \
+            -name "*.AppImage" | head -1)
+          echo "AppImage trouvée : $APPIMAGE"
+          cp "$APPIMAGE" "$GITHUB_WORKSPACE/Collab-linux-x64.AppImage"
+          chmod +x "$GITHUB_WORKSPACE/Collab-linux-x64.AppImage"
+          ls -lh "$GITHUB_WORKSPACE/Collab-linux-x64.AppImage"
 
       # ─── Windows : ZIP portable ──────────────────────────────────────
       - name: Pack Windows portable ZIP
@@ -144,15 +166,6 @@ jobs:
           Copy-Item $src "Collab.exe" -Force
           Compress-Archive -Path "Collab.exe","collab-backend.exe" -DestinationPath $out -Force
           Get-Item $out | Format-Table Name, Length
-
-      # ─── Linux : tarball ───────────────────────────────────────────────
-      - name: Pack Linux tarball
-        if: matrix.os_name == 'linux'
-        run: |
-          cd apps/desktop/src-tauri/target/release
-          cp collab-desktop Collab
-          tar -czf "$GITHUB_WORKSPACE/Collab-Portable-linux-x64.tar.gz" Collab collab-backend
-          ls -lh "$GITHUB_WORKSPACE/Collab-Portable-linux-x64.tar.gz"
 
       # ─── macOS : tarball arm64 ─────────────────────────────────────────
       - name: Pack macOS tarball
@@ -167,7 +180,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: collab-portable-${{ matrix.os_name }}
-          path: Collab-Portable-*
+          path: |
+            Collab-Portable-*
+            Collab-linux-x64.AppImage
           retention-days: 7
 
   release:
@@ -179,7 +194,7 @@ jobs:
           path: artifacts
 
       - name: List artifacts
-        run: find artifacts -type f -name "Collab-Portable-*"
+        run: find artifacts -type f \( -name "Collab-Portable-*" -o -name "Collab-linux-x64.AppImage" \)
 
       - name: Determine release tag
         id: tag
@@ -201,6 +216,6 @@ jobs:
                  --title "Collab Desktop $TAG" \
                  --notes "Build CI automatique multi-OS (Windows x64, Linux x64, macOS arm64)."
           # Upload all artifacts found
-          find artifacts -type f -name "Collab-Portable-*" -print0 | while IFS= read -r -d '' f; do
+          find artifacts -type f \( -name "Collab-Portable-*" -o -name "Collab-linux-x64.AppImage" \) -print0 | while IFS= read -r -d '' f; do
             gh release upload "$TAG" "$f" --repo "$GITHUB_REPOSITORY" --clobber
           done
