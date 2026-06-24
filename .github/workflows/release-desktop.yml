@@ -83,7 +83,7 @@ jobs:
         working-directory: apps/desktop
         run: npm install
 
-      # ── Bundle backend TypeScript → CJS unique via esbuild ────────────
+      # ── Bundle backend TypeScript → CJS unique via esbuild ────────────────
       - name: Bundle backend (esbuild CJS)
         working-directory: apps/backend
         shell: bash
@@ -95,9 +95,10 @@ jobs:
             --external:bufferutil --external:utf-8-validate
           ls -lh dist/bundle.cjs
 
-      # ── Sidecar : Node.js SEA (Single Executable Application) ─────────
-      # Pas de téléchargement externe — on injecte le bundle dans le binaire
-      # node de la CI. Fonctionne sur Linux, Windows et macOS nativement.
+      # ── Sidecar : Node.js SEA (Single Executable Application) ─────────────
+      # Le binaire node de la CI est copié puis le bundle y est injecté.
+      # Le nom DOIT conserver le target-triple : Tauri v1 le cherche explicitement
+      # au runtime (Command::new_sidecar → {exe_dir}/collab-backend-{triple}).
       - name: Build sidecar (Node.js SEA)
         shell: bash
         working-directory: apps/backend
@@ -105,21 +106,25 @@ jobs:
           TRIPLE="${{ matrix.triple }}"
           EXT="${{ matrix.sidecar_ext }}"
           BINDIR="$GITHUB_WORKSPACE/apps/desktop/src-tauri/binaries"
+
+          # BUG FIX #2 : créer binaries/ s'il n'existe pas (gitignored, absent du checkout)
+          mkdir -p "$BINDIR"
+
           OUT="${BINDIR}/collab-backend-${TRIPLE}${EXT}"
 
-          # Config SEA
-          cat > sea-config.json << 'EOF'
-          {
-            "main": "dist/bundle.cjs",
-            "output": "sea-prep.blob",
-            "disableExperimentalSEAWarning": true
-          }
-          EOF
+          # Écriture du fichier de config sans indentation parasite
+          cat > sea-config.json << 'SEAEOF'
+{
+  "main": "dist/bundle.cjs",
+  "output": "sea-prep.blob",
+  "disableExperimentalSEAWarning": true
+}
+SEAEOF
 
           node --experimental-sea-config sea-config.json
 
           # Copie du binaire node natif (même architecture que la CI)
-          NODE_BIN="$(which node || where node 2>/dev/null | head -1)"
+          NODE_BIN="$(which node)"
           cp "$NODE_BIN" "$OUT"
 
           # macOS : supprimer la signature avant injection
@@ -143,40 +148,47 @@ jobs:
           fi
 
           chmod +x "$OUT" 2>/dev/null || true
-          echo "=== Sidecar créé ==="
+          echo "=== Sidecar créé (avec triple) ==="
           ls -lh "$OUT"
 
-      # ── Build frontend SvelteKit ───────────────────────────────────────
+      # ── Build frontend SvelteKit ───────────────────────────────────────────
       - name: Build frontend
         working-directory: apps/frontend
         run: npm run build
 
-      # ── Compilation Rust (cargo build, tous OS) ────────────────────────
+      # ── Compilation Rust (cargo build) ────────────────────────────────────
       - name: Build Tauri app (cargo)
         working-directory: apps/desktop/src-tauri
         env:
           CARGO_HTTP_CHECK_REVOKE: false
         shell: bash
         run: |
-          echo "=== Vérification sidecar avant cargo build ==="
+          echo "=== Sidecar dans binaries/ avant cargo build ==="
           ls -lh "$GITHUB_WORKSPACE/apps/desktop/src-tauri/binaries/"
           cargo build --release --features custom-protocol ${{ matrix.tauri_target }}
 
-      # ── Copie sidecar dans release dir ────────────────────────────────
+      # ── Copie sidecar dans release dir (NOM AVEC TRIPLE conservé) ─────────
+      # BUG FIX #1/#3 : Tauri v1 cherche {exe_dir}/collab-backend-{triple}[.exe]
+      # Le nom sans triple est invisible pour le sidecar resolver.
       - name: Copy sidecar to release dir
         shell: bash
         run: |
-          SRC="apps/desktop/src-tauri/binaries/collab-backend-${{ matrix.triple }}${{ matrix.sidecar_ext }}"
-          DEST="apps/desktop/src-tauri/${{ matrix.release_dir }}/collab-backend${{ matrix.sidecar_ext }}"
+          TRIPLE="${{ matrix.triple }}"
+          EXT="${{ matrix.sidecar_ext }}"
+          RELDIR="apps/desktop/src-tauri/${{ matrix.release_dir }}"
+          SRC="apps/desktop/src-tauri/binaries/collab-backend-${TRIPLE}${EXT}"
+          DEST="${RELDIR}/collab-backend-${TRIPLE}${EXT}"
           cp "$SRC" "$DEST"
           chmod +x "$DEST" 2>/dev/null || true
+          echo "=== Sidecar dans release dir ==="
           ls -lh "$DEST"
 
-      # ─── Linux : AppImage via linuxdeploy (bundle webkit) ─────────────
+      # ─── Linux : AppImage via linuxdeploy (webkit2gtk bundlé) ─────────────
       - name: Create AppImage (Linux)
         if: matrix.os_name == 'linux'
         shell: bash
         run: |
+          TRIPLE="${{ matrix.triple }}"
           RELDIR="$GITHUB_WORKSPACE/apps/desktop/src-tauri/target/release"
           APPDIR="$GITHUB_WORKSPACE/Collab.AppDir"
 
@@ -188,8 +200,12 @@ jobs:
           mkdir -p "$APPDIR/usr/share/applications"
           mkdir -p "$APPDIR/usr/share/icons/hicolor/256x256/apps"
 
+          # Binaire principal Tauri
           cp "$RELDIR/collab-desktop" "$APPDIR/usr/bin/collab"
-          cp "$RELDIR/collab-backend"  "$APPDIR/usr/bin/"
+
+          # BUG FIX #3 : conserver le triple pour que Tauri le trouve au runtime
+          cp "$RELDIR/collab-backend-${TRIPLE}" "$APPDIR/usr/bin/collab-backend-${TRIPLE}"
+
           chmod +x "$APPDIR/usr/bin/"*
 
           cp "apps/desktop/src-tauri/icons/128x128.png" \
@@ -199,36 +215,81 @@ jobs:
             > "$APPDIR/collab.desktop"
           cp "$APPDIR/collab.desktop" "$APPDIR/usr/share/applications/"
 
-          # linuxdeploy bundle toutes les libs via ldd (webkit2gtk inclus)
+          echo "=== Contenu AppDir/usr/bin/ ==="
+          ls -lh "$APPDIR/usr/bin/"
+
+          # linuxdeploy bundle toutes les libs via ldd (webkit2gtk-4.0 inclus)
           APPIMAGE_EXTRACT_AND_RUN=1 ./linuxdeploy-x86_64.AppImage \
             --appdir "$APPDIR" \
             --output appimage
 
+          # BUG FIX #4 : vérifier que l'AppImage a bien été créée
           BUILT=$(find . -maxdepth 1 -name "*.AppImage" ! -name "linuxdeploy*" | head -1)
+          if [ -z "$BUILT" ]; then
+            echo "ERREUR : linuxdeploy n'a pas créé d'AppImage !"
+            exit 1
+          fi
+
           mv "$BUILT" "$GITHUB_WORKSPACE/Collab-linux-x64.AppImage"
           chmod +x "$GITHUB_WORKSPACE/Collab-linux-x64.AppImage"
           ls -lh "$GITHUB_WORKSPACE/Collab-linux-x64.AppImage"
 
-      # ─── Windows : ZIP portable ───────────────────────────────────────
+      # ─── Windows : ZIP portable ───────────────────────────────────────────
+      # BUG FIX #1 : inclure le sidecar avec le triple dans le ZIP
       - name: Pack Windows ZIP
         if: matrix.os_name == 'windows'
         shell: pwsh
-        working-directory: apps/desktop/src-tauri/target/release
         run: |
-          $out = "$env:GITHUB_WORKSPACE/Collab-Portable-x64.zip"
-          $src = if (Test-Path "collab-desktop.exe") { "collab-desktop.exe" } else { "Collab.exe" }
-          Copy-Item $src "Collab.exe" -Force
-          Compress-Archive -Path "Collab.exe","collab-backend.exe" -DestinationPath $out -Force
+          $triple = "${{ matrix.triple }}"
+          $relDir = "apps\desktop\src-tauri\target\release"
+          $out = "$env:GITHUB_WORKSPACE\Collab-Portable-x64.zip"
+
+          # Renomme le binaire Tauri en Collab.exe pour l'utilisateur final
+          $tauriBin = if (Test-Path "$relDir\collab-desktop.exe") {
+            "$relDir\collab-desktop.exe"
+          } else {
+            "$relDir\Collab.exe"
+          }
+
+          # Sidecar avec triple (requis par Tauri v1 au runtime)
+          $sidecar = "$relDir\collab-backend-$triple.exe"
+
+          if (-not (Test-Path $sidecar)) {
+            Write-Error "Sidecar introuvable : $sidecar"
+            exit 1
+          }
+
+          # Assemblage dans un répertoire temporaire
+          $tmpDir = "$env:GITHUB_WORKSPACE\_zip_tmp"
+          New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
+          Copy-Item $tauriBin "$tmpDir\Collab.exe"
+          Copy-Item $sidecar "$tmpDir\collab-backend-$triple.exe"
+
+          Compress-Archive -Path "$tmpDir\*" -DestinationPath $out -Force
+          Remove-Item -Recurse -Force $tmpDir
+          Write-Host "=== ZIP créé ==="
           Get-Item $out | Format-Table Name, Length
 
-      # ─── macOS : tarball arm64 ────────────────────────────────────────
+      # ─── macOS : tarball arm64 ────────────────────────────────────────────
+      # BUG FIX #1 : inclure le sidecar avec le triple dans le tarball
       - name: Pack macOS tarball
         if: matrix.os_name == 'macos'
+        shell: bash
         run: |
-          cd apps/desktop/src-tauri/target/aarch64-apple-darwin/release
+          TRIPLE="${{ matrix.triple }}"
+          RELDIR="apps/desktop/src-tauri/target/aarch64-apple-darwin/release"
+          OUT="$GITHUB_WORKSPACE/Collab-Portable-macos-arm64.tar.gz"
+
+          SIDECAR="${RELDIR}/collab-backend-${TRIPLE}"
+          if [ ! -f "$SIDECAR" ]; then
+            echo "ERREUR : sidecar introuvable : $SIDECAR"
+            exit 1
+          fi
+
+          cd "$RELDIR"
           cp collab-desktop Collab
-          tar -czf "$GITHUB_WORKSPACE/Collab-Portable-macos-arm64.tar.gz" Collab collab-backend
-          ls -lh "$GITHUB_WORKSPACE/Collab-Portable-macos-arm64.tar.gz"
+          tar -czf "$OUT" Collab "collab-backend-${TRIPLE}"
+          ls -lh "$OUT"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -239,6 +300,7 @@ jobs:
             Collab-linux-x64.AppImage
           retention-days: 7
 
+  # ─── Publication GitHub Release ─────────────────────────────────────────────
   release:
     needs: build
     runs-on: ubuntu-22.04
@@ -248,7 +310,7 @@ jobs:
           path: artifacts
 
       - name: List artifacts
-        run: find artifacts -type f \( -name "Collab-Portable-*" -o -name "Collab-linux-x64.AppImage" \)
+        run: find artifacts -type f | sort
 
       - name: Determine tag
         id: tag
@@ -259,7 +321,7 @@ jobs:
             echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Upload to release
+      - name: Create or reuse GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -268,7 +330,17 @@ jobs:
             || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
                  --title "Collab Desktop $TAG" \
                  --notes "Build CI multi-OS (Windows x64, Linux x64 AppImage, macOS arm64)."
-          find artifacts -type f \( -name "Collab-Portable-*" -o -name "Collab-linux-x64.AppImage" \) -print0 \
-            | while IFS= read -r -d '' f; do
-              gh release upload "$TAG" "$f" --repo "$GITHUB_REPOSITORY" --clobber
-            done
+
+      # BUG FIX #5 : process substitution au lieu de pipe pour catcher les erreurs
+      - name: Upload release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          while IFS= read -r -d '' f; do
+            echo "Upload : $f"
+            gh release upload "$TAG" "$f" --repo "$GITHUB_REPOSITORY" --clobber
+          done < <(find artifacts -type f \( \
+            -name "Collab-Portable-*" \
+            -o -name "Collab-linux-x64.AppImage" \
+          \) -print0)
