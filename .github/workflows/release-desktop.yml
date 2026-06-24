@@ -23,19 +23,19 @@ jobs:
         include:
           - platform: windows-latest
             os_name: windows
-            pkg_target: node22-win-x64
+            pkg_target: node20-win-x64
             triple: x86_64-pc-windows-msvc
             sidecar_ext: '.exe'
             tauri_target: ''
           - platform: macos-latest
             os_name: macos
-            pkg_target: node22-macos-arm64
+            pkg_target: node20-macos-arm64
             triple: aarch64-apple-darwin
             sidecar_ext: ''
             tauri_target: '--target aarch64-apple-darwin'
           - platform: ubuntu-22.04
             os_name: linux
-            pkg_target: node22-linux-x64
+            pkg_target: node20-linux-x64
             triple: x86_64-unknown-linux-gnu
             sidecar_ext: ''
             tauri_target: ''
@@ -95,7 +95,7 @@ jobs:
           npm install --save-dev esbuild
           npm run build
           npx esbuild src/server.ts --bundle --platform=node --format=cjs \
-            --target=node22 --outfile=dist/bundle.cjs \
+            --target=node20 --outfile=dist/bundle.cjs \
             --external:bufferutil --external:utf-8-validate
 
       # FIX: Ajout de shell: bash explicite
