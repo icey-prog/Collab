@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, tick } from 'svelte';
   import QRCode from 'qrcode';
   import { createRoom } from '$lib/api/room';
-  import { getLocalIp, startBackend, isBackendRunning, getBackendPort, isTauri, getBackendUrl } from '$lib/tauri';
+  import { getLocalIp, startBackend, isBackendRunning, getBackendPort, isTauri, getBackendUrl, setJoinHostOverride } from '$lib/tauri';
   import { pushToast } from '$lib/stores/room';
   import { getSharableBase } from '$lib/utils/lan';
 
@@ -58,9 +58,19 @@
     }
   }
 
+  // Bug A fix : empêche le spam-click sur "Réessayer" pendant que le backend
+  // est down — sans ça chaque clic empile un toast "Failed to fetch" identique.
+  let retryCooldown = false;
+  const RETRY_COOLDOWN_MS = 1500;
+
   async function hostRoom() {
-    if (state === 'starting') return;
+    if (state === 'starting' || retryCooldown) return;
+    retryCooldown = true;
+    setTimeout(() => (retryCooldown = false), RETRY_COOLDOWN_MS);
     state = 'starting';
+    // Bug D fix : on héberge toujours sur SA propre machine — un override de
+    // join (cross-machine) laissé par une session précédente doit être purgé.
+    setJoinHostOverride(null);
     try {
       // Si Tauri, démarrer le backend sidecar local et récupérer l'IP via Rust invoke
       if (isTauri()) {
@@ -102,6 +112,9 @@
       const res = await createRoom();
       roomId = res.roomId;
       state  = 'ready';
+      // Bug B fix : roomUrl est un `$:` réactif — attendre le flush Svelte
+      // avant de lire sa valeur, sinon renderQR() lit l'ancienne valeur (vide).
+      await tick();
       await renderQR();
     } catch (e) {
       pushToast(e instanceof Error ? e.message : 'Erreur création room', 'info', 4000);
@@ -166,7 +179,7 @@
   {:else if state === 'error'}
     <div class="error">
       <p>Échec du démarrage.</p>
-      <button class="btn btn-ghost" on:click={hostRoom}>Réessayer</button>
+      <button class="btn btn-ghost" on:click={hostRoom} disabled={retryCooldown}>Réessayer</button>
     </div>
   {/if}
 </div>

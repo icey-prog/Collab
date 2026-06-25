@@ -63,7 +63,20 @@ export function onBackendFailed(callback: (err: string) => void) {
  * Cache : la fonction est appelée plein d'endroits, on évite le round-trip Tauri.
  */
 let _backendUrl: string | null = null;
+
+// Bug D fix : depuis l'app desktop, "Rejoindre" doit pouvoir cibler le sidecar
+// d'une AUTRE machine (PC hôte) au lieu du sidecar local 127.0.0.1. Sans cet
+// override, getBackendUrl() renvoie toujours le backend local — le joiner ne
+// trouve jamais la room créée sur l'hôte distant.
+let _joinOverrideUrl: string | null = null;
+
+export function setJoinHostOverride(url: string | null): void {
+  _joinOverrideUrl = url;
+  _backendUrl = null; // invalide le cache pour que le prochain getBackendUrl() le reprenne
+}
+
 export async function getBackendUrl(): Promise<string> {
+  if (_joinOverrideUrl) return _joinOverrideUrl;
   if (_backendUrl !== null) return _backendUrl;
   if (isTauri()) {
     const port = await getBackendPort();

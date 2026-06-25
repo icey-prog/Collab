@@ -25,6 +25,7 @@
   import Loader       from '$lib/components/Loader.svelte';
   import QRShare      from '$lib/components/QRShare.svelte';
   import { getSharableBase } from '$lib/utils/lan';
+  import { setJoinHostOverride } from '$lib/tauri';
 
   $: roomId = $page.params.id?.toUpperCase() ?? '';
 
@@ -147,6 +148,9 @@
     yBundle?.destroy();
     yBundle = null;
     disconnectSocket();
+    // Bug D fix : l'override de host (join cross-machine) ne doit vivre que
+    // pour cette session room — sinon il fuit vers le prochain hébergement.
+    setJoinHostOverride(null);
     // Reset stores so re-entering a different room starts clean
     participants.set(0);
     isAdmin.set(false);

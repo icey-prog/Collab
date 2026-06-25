@@ -28,10 +28,22 @@ export interface Toast {
 }
 export const toasts = writable<Toast[]>([]);
 let toastSeq = 0;
+const MAX_TOASTS = 3;
 
+// Bug A fix : sans dédup ni plafond, un même message répété (ex. "Failed to
+// fetch" en boucle quand le backend reste down) empilait des toasts sans
+// limite, débordant hors de la fenêtre.
 export function pushToast(text: string, kind: Toast['kind'] = 'info', ttl = 3000) {
+  let currentToasts: Toast[] = [];
+  toasts.subscribe((arr) => (currentToasts = arr))();
+  const dup = currentToasts.find((t) => t.text === text && t.kind === kind);
+  if (dup) return; // même message déjà affiché — pas de doublon
+
   const id = ++toastSeq;
-  toasts.update((arr) => [...arr, { id, text, kind }]);
+  toasts.update((arr) => {
+    const next = [...arr, { id, text, kind }];
+    return next.length > MAX_TOASTS ? next.slice(next.length - MAX_TOASTS) : next;
+  });
   setTimeout(() => {
     toasts.update((arr) => arr.filter((t) => t.id !== id));
   }, ttl);

@@ -2,10 +2,24 @@
   import { goto } from '$app/navigation';
   import { isValidRoomCode } from '$lib/api/room';
   import { pushToast } from '$lib/stores/room';
+  import { isTauri, setJoinHostOverride } from '$lib/tauri';
 
   let code = '';
   let err  = '';
   let scanSupported = false;
+
+  // Bug D fix : depuis l'app desktop, le code seul ne suffit pas — il faut
+  // savoir SUR QUELLE MACHINE chercher la room (le sidecar local n'a pas la
+  // room d'un autre PC). Champ IP optionnel, requis si l'hôte est distant.
+  let hostAddr = '';
+
+  function normalizeHostAddr(input: string): string {
+    const trimmed = input.trim();
+    if (!trimmed) return '';
+    if (/^https?:\/\//i.test(trimmed)) return trimmed.replace(/\/$/, '');
+    // IP seule ou IP:port → ajoute le port sidecar par défaut si absent
+    return /:\d+$/.test(trimmed) ? `http://${trimmed}` : `http://${trimmed}:47931`;
+  }
 
   // BarcodeDetector is the modern, native, no-dep way to scan QR.
   // Falls back gracefully if browser doesn't support it.
@@ -23,6 +37,11 @@
     if (!isValidRoomCode(code)) {
       err = 'Code invalide (6 caractères)';
       return;
+    }
+    if (isTauri()) {
+      // Sur desktop, sans IP renseignée on ne peut viser que le sidecar local
+      // (room hébergée sur CETTE machine). Avec IP → cible la machine distante.
+      setJoinHostOverride(hostAddr ? normalizeHostAddr(hostAddr) : null);
     }
     if (navigator.vibrate) navigator.vibrate(10);
     goto(`/room/${code}`);
@@ -49,6 +68,9 @@
             const m = raw.match(/\/room\/([A-Z0-9]{6})/i);
             if (m) {
               code = m[1].toUpperCase();
+              // Bug D fix : le QR contient l'URL complète (http://<ip-hôte>:<port>/room/CODE) —
+              // récupérer l'origine pour cibler la bonne machine, pas juste le code.
+              try { hostAddr = new URL(raw).origin; } catch { /* QR malformé, fallback sidecar local */ }
               stream.getTracks().forEach(t => t.stop());
               submit();
               return;
@@ -93,6 +115,20 @@
 
   {#if err}<p class="err">{err}</p>{/if}
 
+  {#if isTauri()}
+    <div class="host-field">
+      <label class="host-label" for="host-addr">IP de l'ordinateur hôte (laisser vide si room sur cette machine)</label>
+      <input
+        id="host-addr"
+        class="field host-input"
+        type="text"
+        placeholder="192.168.1.42"
+        bind:value={hostAddr}
+        aria-label="IP de l'hôte"
+      />
+    </div>
+  {/if}
+
   {#if scanSupported}
     <div class="or">ou</div>
     <button class="btn btn-ghost scan" on:click={scanQR}>
@@ -120,6 +156,11 @@
   .join-btn { padding: 0 22px; min-height: 56px; min-width: 120px; }
 
   .err { color: #B05656; font-size: 12px; margin: 0; }
+
+  .host-field { display: flex; flex-direction: column; gap: 6px; }
+  .host-label { font-size: 12px; color: var(--navy-55); }
+  .host-input { font-family: var(--font-mono); font-size: 13px; }
+
   .or {
     text-align: center; font-size: 11px; color: var(--navy-40);
     letter-spacing: 0.15em; text-transform: uppercase;

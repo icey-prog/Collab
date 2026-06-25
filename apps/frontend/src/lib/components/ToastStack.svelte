@@ -16,6 +16,7 @@
     position: fixed; right: 26px; bottom: 26px; z-index: 80;
     display: flex; flex-direction: column; gap: 10px;
     pointer-events: none;
+    max-height: calc(100vh - 52px); overflow: hidden;
   }
   .toast {
     display: flex; align-items: center; gap: 12px;
