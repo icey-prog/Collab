@@ -1,0 +1,55 @@
+# ─────────────────────────────────────────────────────────────────────
+# Collab backend — déploiement Coolify (Build Pack : Docker Compose)
+#
+# Coolify lit ce fichier, build l'image via le Dockerfile local, gère
+# le domaine + SSL via son proxy (Traefik/Caddy) — ne PAS publier de
+# port ici, `expose` suffit.
+#
+# Variables à définir dans l'UI Coolify (Environment Variables) :
+#   FRONT_ORIGIN  → https://collab-one-lac.vercel.app
+# ─────────────────────────────────────────────────────────────────────
+
+services:
+  collab-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+
+    expose:
+      - "3001"
+
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      DATA_DIR: /app/data
+      # Origine du frontend autorisée par CORS (cookie admin cross-site).
+      # Défaut = déploiement Vercel actuel ; surcharger dans Coolify si besoin.
+      FRONT_ORIGIN: ${FRONT_ORIGIN:-https://collab-one-lac.vercel.app}
+
+    volumes:
+      # Uploads persistants — survivent aux redéploiements
+      - collab-uploads:/app/data
+
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3001/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+    # Rooms éphémères en mémoire : 512 Mo suffisent largement (MVP 3-4
+    # participants/room). Ajuster si montée en charge.
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  collab-uploads:
