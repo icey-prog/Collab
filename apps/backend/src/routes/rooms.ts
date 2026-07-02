@@ -22,8 +22,13 @@ export function registerRoomRoutes(app: FastifyInstance, getIO: () => IOServer):
       adminToken, participants: new Set(), questions: [], files: [], doc: new Y.Doc(),
     };
     rooms.set(id, room);
+    // Prod : frontend (Vercel/Tauri) et API (VPS) sont cross-site — un cookie
+    // Lax n'est jamais envoyé dans ce contexte, l'hôte perdrait son rôle admin.
+    // SameSite=None exige Secure (HTTPS), d'où le split prod/dev.
+    const isProd = process.env.NODE_ENV === 'production';
     reply.setCookie('collab_admin', `${id}:${adminToken}`, {
-      path: '/', httpOnly: true, sameSite: 'lax', maxAge: ROOM_TTL_MS / 1000,
+      path: '/', httpOnly: true, maxAge: ROOM_TTL_MS / 1000,
+      sameSite: isProd ? 'none' : 'lax', secure: isProd,
     });
     return { roomId: id };
   });

@@ -17,8 +17,9 @@ export function corsOriginCheck(
   // macOS/Linux: tauri://localhost).
   if (/^https?:\/\/tauri\.localhost$/.test(origin)) return cb(null, true);
   if (origin === 'tauri://localhost') return cb(null, true);
-  // Vercel auto-domains (collab-talk-*.vercel.app) + domaine principal
-  if (/^https:\/\/collab-talk(-[\w-]+)?\.vercel\.app$/.test(origin)) return cb(null, true);
+  // Déploiement Vercel du frontend (prod). Les previews éphémères passent
+  // par FRONT_ORIGIN si besoin — pas de wildcard *.vercel.app avec credentials.
+  if (origin === 'https://collab-one-lac.vercel.app') return cb(null, true);
   return cb(null, false);
 }
 
