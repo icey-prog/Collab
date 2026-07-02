@@ -17,10 +17,10 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import cookie from '@fastify/cookie';
 import multipart from '@fastify/multipart';
-import staticPlugin from '@fastify/static';
+import rateLimit from '@fastify/rate-limit';
 import { Server as IOServer } from 'socket.io';
 
-import { rooms, startJanitor, UPLOAD_DIR, MAX_FILE_BYTES, MAX_PARTICIPANTS } from './lib/state';
+import { rooms, startJanitor, MAX_FILE_BYTES, MAX_PARTICIPANTS } from './lib/state';
 import { corsOriginCheck, corsSummary } from './lib/cors';
 import { registerRoomRoutes } from './routes/rooms';
 import { registerFileRoutes } from './routes/files';
@@ -41,18 +41,23 @@ app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body,
 app.register(cors, { origin: corsOriginCheck, credentials: true });
 app.register(cookie);
 app.register(multipart, { limits: { fileSize: MAX_FILE_BYTES } });
-app.register(staticPlugin, { root: UPLOAD_DIR, prefix: '/files/', decorateReply: false });
+// Anti-DoS : 60 req/min global par IP ; create/upload ont des limites
+// dédiées plus strictes (config par route).
+app.register(rateLimit, { max: 60, timeWindow: '1 minute' });
 
 // io est instancié après app.listen() — les routes y accèdent via getter.
 let io: IOServer;
 const getIO = () => io;
 
-registerRoomRoutes(app, getIO);
-registerFileRoutes(app, getIO);
-registerAdminRoutes(app, getIO);
-
-/* GET / — sanity check */
-app.get('/', async () => ({ ok: true, service: 'collab-backend', rooms: rooms.size }));
+// Routes dans un plugin enfant : avvio le charge APRÈS rate-limit, sinon le
+// hook onRoute du plugin ne voit pas les routes et ignore leur config.rateLimit.
+app.register(async (scope) => {
+  registerRoomRoutes(scope, getIO);
+  registerFileRoutes(scope, getIO);
+  registerAdminRoutes(scope, getIO);
+  /* GET / — sanity check */
+  scope.get('/', async () => ({ ok: true, service: 'collab-backend', rooms: rooms.size }));
+});
 
 app.listen({ port: PORT, host: '0.0.0.0' }).then(() => {
   io = new IOServer(app.server, {

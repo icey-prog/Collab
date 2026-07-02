@@ -12,8 +12,7 @@
     activeModule, participants, isAdmin, status,
     expiresInSec, expiresLabel, pushToast
   } from '$lib/stores/room';
-  import { registerOutboxFlush } from '$lib/stores/network';
-  import { outboxFlush, outboxCount } from '$lib/offline/outbox';
+  import { outboxFlush } from '$lib/offline/outbox';
   import { questions, type Question } from '$lib/stores/qa';
   import { files,     type RoomFile } from '$lib/stores/files';
 
@@ -73,6 +72,11 @@
       participants.set(n);
       isAdmin.set(!!a);
       status.set('joined');
+      // Flush outbox ICI et pas sur l'event 'online' : le serveur droppe
+      // silencieusement tout qa:add émis avant que le join soit re-traité.
+      outboxFlush(s).then((count) => {
+        if (count > 0) pushToast(`${count} action${count > 1 ? 's' : ''} synchronisée${count > 1 ? 's' : ''}`, 'success');
+      });
     });
 
     s.on('room:error', ({ code }) => {
@@ -100,8 +104,12 @@
     /* Y.js doc */
     yBundle = createRoomDoc(s, roomId);
 
-    /* Connect + join */
-    s.emit('join:room', { roomId });
+    /* Connect + join. Le serveur perd socket.rooms à chaque déconnexion —
+     * il FAUT ré-émettre join:room après un reconnect réseau, sinon tous les
+     * yjs:sync/qa sont silencieusement droppés (socket.rooms.has → false). */
+    const join = () => s.emit('join:room', { roomId });
+    join();                        // premier join (bufferisé si pas encore connecté)
+    s.io.on('reconnect', join);    // re-join après chaque reconnexion
   }
 
   function closeRoom() {
@@ -133,19 +141,9 @@
       expiresInSec.update((s) => Math.max(0, s - 1));
     }, 1000);
 
-    // Register outbox flush — fires automatically when network comes back online
-    // Fix #3 race: the lock is inside outboxFlush itself
-    registerOutboxFlush(async () => {
-      const n = await outboxFlush(getSocket());
-      if (n > 0) pushToast(`${n} action${n > 1 ? 's' : ''} synchronisée${n > 1 ? 's' : ''} après retour réseau`, 'success');
-    });
-
-    // Flush any pending actions from previous offline session
-    const pending = await outboxCount();
-    if (pending > 0) {
-      const flushed = await outboxFlush(getSocket());
-      if (flushed > 0) pushToast(`${flushed} action${flushed > 1 ? 's' : ''} synchronisée${flushed > 1 ? 's' : ''} (session précédente)`, 'success');
-    }
+    // Le flush de l'outbox se fait dans le handler 'room:joined' (wire) —
+    // couvre à la fois la session précédente et chaque reconnexion réseau
+    // (Socket.io ré-émet join:room → room:joined à chaque reconnect).
   });
 
   onDestroy(() => {

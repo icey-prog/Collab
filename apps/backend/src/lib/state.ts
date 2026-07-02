@@ -14,8 +14,11 @@ mkdirSync(UPLOAD_DIR, { recursive: true });
 export const ROOM_TTL_MS = 4 * 60 * 60 * 1000;   // 4h
 export const FILE_TTL_MS = 24 * 60 * 60 * 1000;  // 24h
 export const MAX_PARTICIPANTS = 4;
-export const MAX_FILE_BYTES = 10 * 1024 * 1024;  // 10 MB
+export const MAX_FILE_BYTES = 10 * 1024 * 1024;  // 10 MB par fichier
+export const MAX_FILES_PER_ROOM = 20;            // anti-DoS disque
+export const MAX_ROOM_BYTES = 50 * 1024 * 1024;  // 50 MB cumulés par room
 export const MAX_YJS_UPDATE = 256 * 1024;        // 256 KB par update
+export const MAX_NOTES_CHARS = 200_000;          // cap texte notes (anti-DoS RAM)
 
 const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 

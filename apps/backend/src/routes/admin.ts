@@ -1,14 +1,30 @@
 /**
  * Routes admin : liste des rooms + stats globales.
- * ⚠ Pas encore d'authentification — Lot 1 (sécurité) ajoutera ADMIN_SECRET
- * avant tout déploiement public.
+ *
+ * Protection : ADMIN_SECRET (env). Si défini, exige `Authorization: Bearer <secret>`.
+ * Non défini (dev local) → accès libre. Ne touche PAS le user flow : seules
+ * ces deux routes de dashboard sont concernées, create/join restent sans auth.
  */
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import type { Server as IOServer } from 'socket.io';
 import { rooms, publicFiles, MAX_PARTICIPANTS } from '../lib/state';
 import { isRoomAdminFromCookies } from '../lib/auth';
 
+const ADMIN_SECRET = process.env.ADMIN_SECRET;
+
+function requireAdminSecret(req: FastifyRequest, reply: FastifyReply, done: () => void): void {
+  if (!ADMIN_SECRET) return done();  // dev local sans secret
+  const auth = req.headers.authorization ?? '';
+  if (auth === `Bearer ${ADMIN_SECRET}`) return done();
+  reply.code(401).send({ error: 'UNAUTHORIZED' });
+}
+
 export function registerAdminRoutes(app: FastifyInstance, getIO: () => IOServer): void {
+
+  app.addHook('preHandler', (req, reply, done) => {
+    if (req.url.startsWith('/admin/')) return requireAdminSecret(req, reply, done);
+    done();
+  });
 
   app.get('/admin/rooms', async (req) => {
     const now = Date.now();

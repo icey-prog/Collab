@@ -8,7 +8,7 @@ import { unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   rooms, getRoom, publicFiles, publicQuestions,
-  UPLOAD_DIR, MAX_PARTICIPANTS, MAX_YJS_UPDATE, type Question,
+  UPLOAD_DIR, MAX_PARTICIPANTS, MAX_YJS_UPDATE, MAX_NOTES_CHARS, type Question,
 } from '../lib/state';
 import { isRoomAdminFromCookieHeader } from '../lib/auth';
 
@@ -53,6 +53,8 @@ export function registerSocketHandlers(io: IOServer): void {
       const r = getRoom(roomId); if (!r || !socket.rooms.has(roomId)) return;
       const u8 = new Uint8Array(update);
       if (u8.byteLength > MAX_YJS_UPDATE) return;
+      // Cap RAM : doc déjà au max → drop (dépassement max = 1 update de 256 KB)
+      if (r.doc.getText('notes').length > MAX_NOTES_CHARS) return;
       Y.applyUpdate(r.doc, u8, 'remote');
       socket.to(roomId).emit('yjs:update', { roomId, update: u8 });
     });

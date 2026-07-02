@@ -13,7 +13,9 @@ import { isRoomAdminFromCookies } from '../lib/auth';
 
 export function registerRoomRoutes(app: FastifyInstance, getIO: () => IOServer): void {
 
-  app.post('/room/create', async (_req, reply) => {
+  app.post('/room/create', {
+    config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+  }, async (_req, reply) => {
     let id = genRoomId();
     while (rooms.has(id)) id = genRoomId();
     const adminToken = randomBytes(24).toString('hex');

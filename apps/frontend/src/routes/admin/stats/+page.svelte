@@ -35,11 +35,25 @@
   let timer: ReturnType<typeof setInterval> | null = null;
   let copiedRoom: string | null = null;
 
+  // Clé admin (ADMIN_SECRET serveur) — mémorisée pour la session navigateur.
+  let adminKey = '';
+  if (typeof sessionStorage !== 'undefined') {
+    adminKey = sessionStorage.getItem('collab.adminKey') ?? '';
+  }
+  function saveKeyAndRetry() {
+    try { sessionStorage.setItem('collab.adminKey', adminKey); } catch {}
+    state = 'loading';
+    fetchStats();
+  }
+  function authHeaders(): Record<string, string> {
+    return adminKey ? { Authorization: `Bearer ${adminKey}` } : {};
+  }
+
   async function fetchStats() {
     try {
       const [statsRes, roomsRes] = await Promise.all([
-        apiFetch('/admin/stats', { credentials: 'include' }),
-        apiFetch('/admin/rooms', { credentials: 'include' }),
+        apiFetch('/admin/stats', { credentials: 'include', headers: authHeaders() }),
+        apiFetch('/admin/rooms', { credentials: 'include', headers: authHeaders() }),
       ]);
       if (statsRes.status === 401 || statsRes.status === 403) { state = 'unauthorized'; return; }
       if (!statsRes.ok || !roomsRes.ok) { state = 'error'; return; }
@@ -135,7 +149,18 @@
     {#if state === 'unauthorized'}
       <div class="panel warn">
         <h3>Accès admin requis</h3>
-        <p>Cette page n'est accessible qu'avec un cookie admin valide. Connectez-vous depuis l'interface admin.</p>
+        <p>Entrez la clé admin (ADMIN_SECRET du serveur).</p>
+        <div class="key-row">
+          <input
+            class="field"
+            type="password"
+            placeholder="Clé admin"
+            bind:value={adminKey}
+            on:keydown={(e) => e.key === 'Enter' && saveKeyAndRetry()}
+            aria-label="Clé admin"
+          />
+          <button class="btn btn-cta" on:click={saveKeyAndRetry}>Valider</button>
+        </div>
       </div>
     {:else if state === 'error' && !stats}
       <div class="panel err">
@@ -416,6 +441,8 @@
     border: 1px solid var(--navy-10);
   }
   .panel.warn { border-color: var(--warning); background: rgba(244,232,168,0.16); }
+  .key-row { display: flex; gap: 10px; margin-top: 12px; max-width: 420px; }
+  .key-row .field { flex: 1; }
   .panel.err  { border-color: var(--error);   background: rgba(244,168,168,0.10); }
   .panel h3 {
     font-family: var(--font-head); font-weight: 700; font-size: 18px;
