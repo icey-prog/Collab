@@ -3,10 +3,6 @@
   "buildCommand": "npm run build",
   "outputDirectory": "build",
   "framework": null,
-  "rewrites": [
-    { "source": "/api/socket.io/(.*)", "destination": "https://collab-talk.fly.dev/socket.io/$1" },
-    { "source": "/api/(.*)",           "destination": "https://collab-talk.fly.dev/$1" }
-  ],
   "headers": [
     {
       "source": "/(.*)",

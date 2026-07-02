@@ -35,7 +35,7 @@ const config = {
         'style-src':       ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
         'font-src':        ["'self'", 'https://fonts.gstatic.com'],
         'img-src':         ["'self'", 'data:', 'blob:'],
-        'connect-src':     ["'self'", 'http://localhost:47931', 'ws://localhost:47931', 'http://127.0.0.1:47931', 'ws://127.0.0.1:47931', 'http://localhost:3001', 'ws://localhost:3001', 'wss:', 'ws:', 'https:'],
+        'connect-src':     ["'self'", 'http://localhost:3001', 'ws://localhost:3001', 'wss:', 'ws:', 'https:'],
         'manifest-src':    ["'self'"],
         'worker-src':      ["'self'"],
         'frame-ancestors': ["'none'"],   // anti-clickjacking (replaces X-Frame-Options)
