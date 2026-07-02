@@ -2,14 +2,12 @@
   "name": "collab-desktop",
   "private": true,
   "version": "1.0.0",
-  "description": "Collab MVP — application desktop Tauri (Windows/Mac/Linux). Sidecar Node embarqué.",
+  "description": "Collab MVP — application desktop Tauri (Windows/Mac/Linux). Backend cloud-first (VITE_API_URL).",
   "scripts": {
     "tauri": "tauri",
     "dev": "tauri dev",
     "build": "tauri build",
-    "build:sidecar": "node ./scripts/build-sidecar.mjs",
     "build:cargo": "cd src-tauri && cargo build --release --features custom-protocol",
-    "build:all": "npm run build:sidecar && npm run build",
     "icons": "tauri icon ../../landing_preview.png"
   },
   "devDependencies": {
