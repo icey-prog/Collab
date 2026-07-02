@@ -13,7 +13,7 @@ apps/desktop/
 │   └── build-sidecar.mjs           # compile backend Node → binaire pkg
 └── src-tauri/
     ├── tauri.conf.json             # config bundle + sidecar + tray
-    ├── Cargo.toml                  # déps Rust (tauri, local-ip-address)
+    ├── Cargo.toml                  # déps Rust (tauri)
     ├── build.rs
     ├── icons/                      # générées via `npm run icons`
     ├── binaries/                   # sidecar Node compilé (gitignored)
@@ -21,7 +21,7 @@ apps/desktop/
         ├── main.rs                 # entry Tauri
         ├── sidecar.rs              # start/stop backend Node
         ├── network.rs              # get_local_ip + check_hotspot_active
-        ├── settings.rs             # open_hotspot_settings + version
+        ├── settings.rs             # get_app_version
         └── tray.rs                 # icône tray + menu
 ```
 
@@ -100,7 +100,7 @@ Collab.exe (Tauri)
 │   └─ Commands invoke()-able depuis le front :
 │       - start_backend / stop_backend / is_backend_running
 │       - get_local_ip / check_hotspot_active
-│       - open_hotspot_settings / get_app_version
+│       - get_app_version
 └─ Sidecar : collab-backend-*.exe (Fastify + Socket.io sur :3001)
 ```
 

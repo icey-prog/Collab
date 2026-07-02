@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import ChromeTR from '$lib/components/ChromeTR.svelte';
+  import { apiFetch } from '$lib/api/http';
 
   interface AdminStats {
     rooms_active:       number;
@@ -37,8 +38,8 @@
   async function fetchStats() {
     try {
       const [statsRes, roomsRes] = await Promise.all([
-        fetch('/api/admin/stats', { credentials: 'include' }),
-        fetch('/api/admin/rooms', { credentials: 'include' }),
+        apiFetch('/admin/stats', { credentials: 'include' }),
+        apiFetch('/admin/rooms', { credentials: 'include' }),
       ]);
       if (statsRes.status === 401 || statsRes.status === 403) { state = 'unauthorized'; return; }
       if (!statsRes.ok || !roomsRes.ok) { state = 'error'; return; }
@@ -62,7 +63,7 @@
   async function closeRoom(id: string) {
     if (!confirm(`Clore définitivement la room ${id} ?`)) return;
     try {
-      const res = await fetch(`/api/room/${id}`, { method: 'DELETE', credentials: 'include' });
+      const res = await apiFetch(`/room/${id}`, { method: 'DELETE', credentials: 'include' });
       if (res.ok) { roomList = roomList.filter(r => r.id !== id); fetchStats(); }
       else alert('Échec : pas admin ou room introuvable');
     } catch { alert('Erreur réseau'); }

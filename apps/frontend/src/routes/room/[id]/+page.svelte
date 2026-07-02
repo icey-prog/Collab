@@ -31,6 +31,9 @@
 
   let yBundle: YDocBundle | null = null;
   let countdownTimer: ReturnType<typeof setInterval> | null = null;
+  // Promesse "éphémère" : quand la room est close/expirée, on purge aussi la
+  // copie locale y-indexeddb (sinon les notes survivent indéfiniment au TTL 4h).
+  let purgeLocalData = false;
   let copied = false;
   let showShare = false;
   // Initialise synchroniquement avec window.location.origin pour éviter race
@@ -75,6 +78,7 @@
     s.on('room:error', ({ code }) => {
       if (code === 'NOT_FOUND') {
         status.set('not_found');
+        purgeLocalData = true;
         goto(`/room/${roomId}/expired`);
       }
     });
@@ -84,6 +88,7 @@
     // Bug #5 centralisation handler room:closed
     s.on('room:closed', () => {
       status.set('closed');
+      purgeLocalData = true;
       goto(`/room/${roomId}/expired`);
     });
 
@@ -147,6 +152,9 @@
     if (countdownTimer) clearInterval(countdownTimer);
     yBundle?.destroy();
     yBundle = null;
+    if (purgeLocalData && typeof indexedDB !== 'undefined') {
+      indexedDB.deleteDatabase(`collab-room-${roomId}`);
+    }
     disconnectSocket();
     // Reset stores so re-entering a different room starts clean
     participants.set(0);

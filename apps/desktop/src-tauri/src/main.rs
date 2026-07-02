@@ -78,7 +78,6 @@ fn main() {
   tauri::Builder::default()
     .invoke_handler(tauri::generate_handler![
       settings::get_app_version,
-      settings::open_hotspot_settings,
     ])
     .system_tray(tray::build_tray())
     .on_system_tray_event(tray::handle_tray_event)

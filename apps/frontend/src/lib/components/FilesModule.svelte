@@ -3,6 +3,7 @@
   import { isAdmin, pushToast } from '$lib/stores/room';
   import { getSocket } from '$lib/socket';
   import { isOnline } from '$lib/stores/network';
+  import { apiFetch, apiUrl } from '$lib/api/http';
 
   export let roomId: string;
 
@@ -37,7 +38,7 @@
     const fd = new FormData();
     fd.append('file', file);
     try {
-      const res = await fetch(`/api/room/${roomId}/upload`, {
+      const res = await apiFetch(`/room/${roomId}/upload`, {
         method: 'POST', body: fd, credentials: 'include'
       });
       if (!res.ok) {
@@ -118,7 +119,7 @@
             <div class="file-sub">{fmtSize(f.size)} · {fmtExpiry(f.expiresAt)}</div>
           </div>
           <div class="file-actions">
-            <a class="icon-btn" href={f.url} target="_blank" rel="noopener noreferrer" title="Télécharger" aria-label="Télécharger {f.name}">
+            <a class="icon-btn" href={apiUrl(f.url)} target="_blank" rel="noopener noreferrer" title="Télécharger" aria-label="Télécharger {f.name}">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path d="M8 2v8M5 7.5L8 10.5l3-3M3 13h10"
                       stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>

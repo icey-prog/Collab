@@ -26,10 +26,20 @@
     getSocket().emit('qa:add', { text: t });
     text = '';
   }
+  // Identifiant de vote persistant (sessionStorage) — survit aux reconnexions
+  // socket, contrairement à socket.id (revote possible sinon après reconnect).
+  function getVoterId(): string {
+    try {
+      let v = sessionStorage.getItem('collab.voterId');
+      if (!v) { v = crypto.randomUUID(); sessionStorage.setItem('collab.voterId', v); }
+      return v;
+    } catch { return ''; } // Safari privé — fallback socket.id côté serveur
+  }
+
   function vote(id: string) {
     if (voted.has(id)) return;
     voted.add(id); voted = voted;     // trigger reactivity
-    getSocket().emit('qa:vote', { questionId: id });
+    getSocket().emit('qa:vote', { questionId: id, voterId: getVoterId() });
   }
   function remove(id: string) {
     if (!$isAdmin) return;

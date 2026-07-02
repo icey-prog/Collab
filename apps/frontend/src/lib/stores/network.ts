@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 
-export type NetworkMode = 'cloud' | 'lan' | 'offline';
+export type NetworkMode = 'cloud' | 'offline';
 
 export const networkMode = writable<NetworkMode>('cloud');
 export const isOnline    = writable<boolean>(true);
