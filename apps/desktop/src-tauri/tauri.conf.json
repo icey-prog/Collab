@@ -18,10 +18,8 @@
       "shell": {
         "all": false,
         "open": true,
-        "sidecar": true,
-        "scope": [
-          { "name": "binaries/collab-backend", "sidecar": true, "args": true }
-        ]
+        "sidecar": false,
+        "scope": []
       },
       "window": {
         "all": false,
@@ -49,9 +47,7 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "externalBin": [
-        "binaries/collab-backend"
-      ],
+      "externalBin": [],
       "resources": [],
       "targets": "all",
       "windows": {
@@ -80,7 +76,7 @@
       }
     },
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' http://localhost:47931 ws://localhost:47931 http://127.0.0.1:47931 ws://127.0.0.1:47931 http://*:47931 ws://*:47931 https://collab-talk.fly.dev wss://collab-talk.fly.dev; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; script-src 'self'"
+      "csp": "default-src 'self'; connect-src 'self' https://collab-talk.fly.dev wss://collab-talk.fly.dev; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; script-src 'self'"
     },
     "windows": [
       {

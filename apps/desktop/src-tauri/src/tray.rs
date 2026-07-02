@@ -7,13 +7,10 @@ use tauri::{
 
 pub fn build_tray() -> SystemTray {
   let open = CustomMenuItem::new("open".to_string(), "Ouvrir Collab");
-  let stop = CustomMenuItem::new("stop".to_string(), "Arrêter le backend");
   let quit = CustomMenuItem::new("quit".to_string(), "Quitter");
 
   let menu = SystemTrayMenu::new()
     .add_item(open)
-    .add_native_item(SystemTrayMenuItem::Separator)
-    .add_item(stop)
     .add_native_item(SystemTrayMenuItem::Separator)
     .add_item(quit);
 
@@ -35,14 +32,7 @@ pub fn handle_tray_event(app: &tauri::AppHandle, event: SystemTrayEvent) {
           let _ = window.set_focus();
         }
       }
-      "stop" => {
-        let state: tauri::State<crate::sidecar::SidecarState> = app.state();
-        crate::sidecar::stop_backend(state);
-      }
       "quit" => {
-        // Stop sidecar avant exit pour éviter les zombies
-        let state: tauri::State<crate::sidecar::SidecarState> = app.state();
-        crate::sidecar::stop_backend(state);
         app.exit(0);
       }
       _ => {}

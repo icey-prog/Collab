@@ -25,7 +25,7 @@
   import Loader       from '$lib/components/Loader.svelte';
   import QRShare      from '$lib/components/QRShare.svelte';
   import { getSharableBase } from '$lib/utils/lan';
-  import { setJoinHostOverride } from '$lib/tauri';
+  import { apiFetch } from '$lib/api/http';
 
   $: roomId = $page.params.id?.toUpperCase() ?? '';
 
@@ -101,7 +101,7 @@
 
   function closeRoom() {
     if (!confirm('Clore définitivement cette room ?')) return;
-    fetch(`/api/room/${roomId}`, { method: 'DELETE', credentials: 'include' })
+    apiFetch(`/room/${roomId}`, { method: 'DELETE', credentials: 'include' })
       .then((r) => {
         if (r.ok) { pushToast('Room close', 'success'); goto('/'); }
         else pushToast('Échec de la fermeture', 'info', 4000);
@@ -148,9 +148,6 @@
     yBundle?.destroy();
     yBundle = null;
     disconnectSocket();
-    // Bug D fix : l'override de host (join cross-machine) ne doit vivre que
-    // pour cette session room — sinon il fuit vers le prochain hébergement.
-    setJoinHostOverride(null);
     // Reset stores so re-entering a different room starts clean
     participants.set(0);
     isAdmin.set(false);

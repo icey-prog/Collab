@@ -1,26 +1,13 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import {
-    isTauri, diagSnapshot, readLog, openLogFile,
-    startBackend, stopBackend, isBackendRunning, getBackendPort, getBackendUrl,
-    getLocalIp,
-  } from '$lib/tauri';
-
-  /**
-   * Page diagnostic Tauri — visible logs en live pour debugger sans rebuild.
-   * Affiche :
-   *   - environnement (isTauri, ua)
-   *   - snapshot Rust (diag_snapshot : port libre, backend running, tasklist)
-   *   - tail log fichier sidecar
-   *   - boutons invoke avec timing + résultat
-   *   - HTTP probe vers /
-   */
+  import { isTauri, getBackendUrl, getAppVersion } from '$lib/tauri';
+  import { isOnline, networkMode } from '$lib/stores/network';
 
   type LogEntry = { ts: string; level: 'info' | 'ok' | 'warn' | 'err'; msg: string };
   let entries: LogEntry[] = [];
-  let snapshot: Record<string, unknown> | null = null;
-  let logTail = '';
   let backendUrl = '';
+  let appVersion = '';
+  let pingMs: number | null = null;
   let intervalId: ReturnType<typeof setInterval> | null = null;
 
   function log(level: LogEntry['level'], msg: string) {
@@ -28,175 +15,92 @@
     entries = [...entries, { ts, level, msg }].slice(-100);
   }
 
-  async function refreshSnapshot() {
-    if (!isTauri()) return;
-    const s = await diagSnapshot();
-    if (s) snapshot = s;
-    const l = await readLog();
-    if (l) logTail = l;
-  }
-
-  async function timedInvoke(name: string, fn: () => Promise<unknown>) {
-    const t0 = performance.now();
-    log('info', `→ invoke ${name}…`);
-    try {
-      const res = await fn();
-      const dt = (performance.now() - t0).toFixed(0);
-      log('ok', `← ${name} (${dt}ms) = ${JSON.stringify(res)}`);
-      await refreshSnapshot();
-      return res;
-    } catch (e) {
-      log('err', `✗ ${name} : ${e instanceof Error ? e.message : String(e)}`);
-      return null;
-    }
-  }
-
-  async function probeBackendHttp() {
-    const url = backendUrl || (await getBackendUrl());
-    if (!url) { log('warn', 'pas d\'URL backend (non-Tauri)'); return; }
-    log('info', `→ HTTP GET ${url}/`);
-    const t0 = performance.now();
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 3000);
-    try {
-      const res = await fetch(`${url}/`, { signal: ctl.signal });
-      clearTimeout(timer);
-      const body = await res.text();
-      const dt = (performance.now() - t0).toFixed(0);
-      log(res.ok ? 'ok' : 'err', `← HTTP ${res.status} (${dt}ms) : ${body.slice(0, 200)}`);
-    } catch (e) {
-      clearTimeout(timer);
-      log('err', `✗ HTTP : ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }
-
-  async function probeCreateRoom() {
-    const url = backendUrl || (await getBackendUrl());
-    if (!url) { log('warn', 'pas d\'URL backend'); return; }
-    log('info', `→ HTTP POST ${url}/room/create`);
+  async function ping() {
     const t0 = performance.now();
     try {
-      const res = await fetch(`${url}/room/create`, { method: 'POST', credentials: 'include' });
-      const body = await res.text();
-      const dt = (performance.now() - t0).toFixed(0);
-      log(res.ok ? 'ok' : 'err', `← POST ${res.status} (${dt}ms) : ${body.slice(0, 200)}`);
+      const base = backendUrl || '/api';
+      const r = await fetch(`${base}/`);
+      pingMs = Math.round(performance.now() - t0);
+      log(r.ok ? 'ok' : 'warn', `GET ${base}/ → ${r.status} (${pingMs}ms)`);
     } catch (e) {
-      log('err', `✗ POST : ${e instanceof Error ? e.message : String(e)}`);
+      pingMs = null;
+      log('err', `Ping échoué : ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 
   onMount(async () => {
-    log('info', `tauri=${isTauri()} ua=${navigator.userAgent.slice(0, 80)}`);
+    log('info', `isTauri = ${isTauri()}`);
+    log('info', `navigator.onLine = ${navigator.onLine}`);
+    log('info', `VITE_API_URL = ${import.meta.env.VITE_API_URL ?? '(non défini — proxy dev)'}`);
+    log('info', `VITE_PUBLIC_URL = ${import.meta.env.VITE_PUBLIC_URL ?? '(non défini)'}`);
+
+    backendUrl = await getBackendUrl();
+    log('info', `getBackendUrl() = "${backendUrl || '(proxy dev)'}"`);
+
     if (isTauri()) {
-      backendUrl = await getBackendUrl();
-      log('info', `backendUrl = ${backendUrl}`);
+      const v = await getAppVersion();
+      appVersion = v ?? '?';
+      log('info', `app version = ${appVersion}`);
     }
-    await refreshSnapshot();
-    intervalId = setInterval(refreshSnapshot, 2000);
+
+    await ping();
+    intervalId = setInterval(ping, 10000);
   });
 
-  onDestroy(() => {
-    if (intervalId) clearInterval(intervalId);
-  });
+  onDestroy(() => { if (intervalId) clearInterval(intervalId); });
 </script>
 
-<svelte:head><title>Collab — Diagnostic</title></svelte:head>
+<svelte:head><title>Diagnostic — Collab</title></svelte:head>
 
 <div class="diag">
-  <header>
-    <h1>🔧 Diagnostic Collab</h1>
-    <p class="sub">État runtime live + actions manuelles. Page non-publique.</p>
-  </header>
+  <h1>Diagnostic</h1>
 
-  <!-- Snapshot Rust -->
   <section class="card">
-    <h2>État Rust (refresh 2s)</h2>
-    {#if !isTauri()}
-      <p class="muted">⚠ Pas dans Tauri (browser web). Les invokes Rust sont indispo.</p>
-    {:else if !snapshot}
-      <p class="muted">Chargement…</p>
-    {:else}
-      <table>
-        {#each Object.entries(snapshot) as [k, v]}
-          <tr><td><code>{k}</code></td><td><code>{JSON.stringify(v)}</code></td></tr>
-        {/each}
-      </table>
-    {/if}
-    <div class="row">
-      <code class="url">backendUrl: {backendUrl || '(vide)'}</code>
+    <h2>Connexion</h2>
+    <dl>
+      <dt>En ligne</dt>     <dd class:ok={$isOnline} class:err={!$isOnline}>{$isOnline ? 'Oui' : 'Non'}</dd>
+      <dt>Mode réseau</dt>  <dd>{$networkMode}</dd>
+      <dt>Backend URL</dt>  <dd><code>{backendUrl || '/api (proxy dev)'}</code></dd>
+      <dt>Latence ping</dt> <dd>{pingMs !== null ? `${pingMs} ms` : 'N/A'}</dd>
+      {#if appVersion}<dt>App version</dt><dd>{appVersion}</dd>{/if}
+    </dl>
+    <button class="btn btn-ghost" on:click={ping}>Ping maintenant</button>
+  </section>
+
+  <section class="card log-card">
+    <h2>Logs</h2>
+    <div class="log">
+      {#each entries as e (e.ts + e.msg)}
+        <div class="line {e.level}">
+          <span class="ts">{e.ts}</span>
+          <span class="msg">{e.msg}</span>
+        </div>
+      {/each}
     </div>
-  </section>
-
-  <!-- Actions manuelles -->
-  <section class="card">
-    <h2>Actions invokes</h2>
-    <div class="actions">
-      <button on:click={() => timedInvoke('start_backend', () => startBackend())}>start_backend</button>
-      <button on:click={() => timedInvoke('stop_backend', () => stopBackend())}>stop_backend</button>
-      <button on:click={() => timedInvoke('is_backend_running', () => isBackendRunning())}>is_backend_running</button>
-      <button on:click={() => timedInvoke('get_backend_port', () => getBackendPort())}>get_backend_port</button>
-      <button on:click={() => timedInvoke('get_local_ip', () => getLocalIp())}>get_local_ip</button>
-      <button on:click={probeBackendHttp}>HTTP GET /</button>
-      <button on:click={probeCreateRoom}>HTTP POST /room/create</button>
-      <button on:click={() => openLogFile()}>Ouvrir log fichier</button>
-    </div>
-  </section>
-
-  <!-- Console live -->
-  <section class="card">
-    <h2>Console live ({entries.length})</h2>
-    <pre class="console">{#each entries as e}<span class="lvl-{e.level}">[{e.ts}] {e.msg}</span>
-{/each}</pre>
-  </section>
-
-  <!-- Tail log Rust -->
-  <section class="card">
-    <h2>Tail collab-backend.log (Rust file)</h2>
-    <pre class="log-tail">{logTail || '(vide ou pas dispo)'}</pre>
   </section>
 </div>
 
 <style>
-  .diag {
-    max-width: 980px; margin: 0 auto; padding: 24px;
-    font-family: var(--font-body);
-  }
-  header { margin-bottom: 18px; }
-  h1 { margin: 0 0 4px; font-size: 22px; font-family: var(--font-head); }
-  .sub { color: var(--navy-55); font-size: 13px; margin: 0; }
-  .card {
-    background: var(--surface); border: 1px solid var(--navy-10);
-    border-radius: 10px; padding: 16px;
-    margin-bottom: 14px;
-  }
-  h2 { margin: 0 0 12px; font-size: 14px; font-family: var(--font-head); color: var(--navy); letter-spacing: -0.01em; }
-  .muted { color: var(--navy-50); font-size: 13px; margin: 0; }
-  table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--font-mono); }
-  td { padding: 4px 6px; border-bottom: 1px solid var(--navy-08); vertical-align: top; }
-  td:first-child { width: 38%; color: var(--navy-60); }
-  td:last-child { color: var(--navy); word-break: break-all; }
-  .row { margin-top: 10px; }
-  .url { font-family: var(--font-mono); font-size: 12px; color: var(--navy-70); }
+  .diag { max-width: 720px; margin: 0 auto; padding: 32px 16px; display: flex; flex-direction: column; gap: 20px; }
+  h1 { font-size: 22px; font-weight: 600; color: var(--navy); margin: 0 0 4px; }
+  h2 { font-size: 14px; font-weight: 600; color: var(--navy-60); text-transform: uppercase; letter-spacing: .08em; margin: 0 0 12px; }
 
-  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
-  .actions button {
-    padding: 8px 14px; font-size: 12px; font-weight: 600;
-    border-radius: 6px; border: 1px solid var(--navy-15);
-    background: var(--navy-04); color: var(--navy); cursor: pointer;
-    transition: background .12s;
-  }
-  .actions button:hover { background: var(--chartreuse); color: var(--accent-ink); border-color: transparent; }
+  .card { background: var(--surface); border-radius: var(--r-lg); padding: 20px; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; font-size: 13px; margin-bottom: 12px; }
+  dt { color: var(--navy-50); }
+  dd { color: var(--navy); font-family: var(--font-mono); margin: 0; }
+  dd.ok { color: #2e7d32; }
+  dd.err { color: #B05656; }
 
-  .console, .log-tail {
-    background: #0e1428; color: #d6e1ff;
-    padding: 12px; border-radius: 6px;
-    font-family: var(--font-mono); font-size: 11px; line-height: 1.6;
-    overflow-x: auto; max-height: 320px; overflow-y: auto;
-    margin: 0; white-space: pre-wrap; word-break: break-word;
+  .log-card .log {
+    background: var(--navy-04); border-radius: var(--r-sm);
+    padding: 12px; font-family: var(--font-mono); font-size: 11px;
+    max-height: 360px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px;
   }
-  .log-tail { color: #a8b8d8; font-size: 10px; }
-  .lvl-info { color: #8cb4ff; display: block; }
-  .lvl-ok   { color: #7eea9d; display: block; }
-  .lvl-warn { color: #f7c843; display: block; }
-  .lvl-err  { color: #ff7a8a; display: block; }
+  .line { display: flex; gap: 10px; }
+  .ts  { color: var(--navy-40); flex-shrink: 0; }
+  .line.ok   .msg { color: #2e7d32; }
+  .line.warn .msg { color: #e65100; }
+  .line.err  .msg { color: #B05656; }
+  .line.info .msg { color: var(--navy-70); }
 </style>
