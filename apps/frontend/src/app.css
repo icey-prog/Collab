@@ -107,15 +107,18 @@ html, body {
   background: var(--paper);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  /* B14 desktop polish : viewport fixe Tauri/desktop, scrollbar n'apparait
-     que sur scroll réel (overflow:auto) avec style slim ci-dessous. */
+  /* Scroll global léger autorisé (petites fenêtres desktop) —
+     scrollbar invisible, le contenu reste défilable à la molette/tactile. */
   height: 100%;
-  overflow: hidden;          /* le défilement se fait dans les containers internes */
+  overflow-y: auto;
+  scrollbar-width: none;               /* Firefox */
 }
-body > div:first-of-type { height: 100%; overflow: auto; }
+html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; }  /* WebKit */
+body > div:first-of-type { min-height: 100%; }
 
 /* ============================================================
    Scrollbars Claude-style — thin, subtle, on-hover reveal
+   (containers internes uniquement)
    ============================================================ */
 * {
   scrollbar-width: thin;                          /* Firefox */
