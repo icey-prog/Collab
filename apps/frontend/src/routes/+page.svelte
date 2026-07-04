@@ -168,7 +168,12 @@
       <div class="ver">v1.0 · MVP</div>
     </div>
 
-    <div class="foot mono">EXXOLAB · Ouagadougou · 2026</div>
+    <div class="foot mono">
+      <a href="/about">À propos</a> ·
+      <a href="/download">Télécharger l'app</a> ·
+      <a href="/privacy">Confidentialité</a>
+      <span class="foot-brand">— EXXOLAB · Ouagadougou · 2026</span>
+    </div>
   </main>
 </div>
 
@@ -273,7 +278,11 @@
     transform: translateX(-50%);
     font-family: var(--font-mono); font-size: 11px;
     color: var(--navy-40);
+    white-space: nowrap;
   }
+  .foot a { color: var(--navy-60); text-decoration: none; }
+  .foot a:hover { color: var(--navy); text-decoration: underline; }
+  .foot-brand { color: var(--navy-40); }
 
   /* Room created card */
   .room-card {
