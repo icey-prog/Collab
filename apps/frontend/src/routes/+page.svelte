@@ -161,18 +161,18 @@
         <span class="b">4 max</span><span class="sepdot">·</span>
         <span class="b">Zéro compte</span>
       </div>
+
+      <div class="foot mono">
+        <a href="/about">À propos</a> ·
+        <a href="/download">Télécharger l'app</a> ·
+        <a href="/privacy">Confidentialité</a>
+        <span class="foot-brand">— EXXOLAB · Ouagadougou · 2026</span>
+      </div>
     </div>
 
     <div class="brand">
       <span class="word">Collab<span class="acc"></span></span>
       <div class="ver">v1.0 · MVP</div>
-    </div>
-
-    <div class="foot mono">
-      <a href="/about">À propos</a> ·
-      <a href="/download">Télécharger l'app</a> ·
-      <a href="/privacy">Confidentialité</a>
-      <span class="foot-brand">— EXXOLAB · Ouagadougou · 2026</span>
     </div>
   </main>
 </div>
@@ -274,11 +274,9 @@
 
   /* Footer */
   .foot {
-    position: absolute; bottom: 28px; left: 50%;
-    transform: translateX(-50%);
+    text-align: center; margin-top: 40px;
     font-family: var(--font-mono); font-size: 11px;
     color: var(--navy-40);
-    white-space: nowrap;
   }
   .foot a { color: var(--navy-60); text-decoration: none; }
   .foot a:hover { color: var(--navy); text-decoration: underline; }
@@ -329,6 +327,5 @@
     .hero { font-size: 42px; }
     .join { flex-direction: column; }
     .rc-actions { flex-direction: column; }
-    .foot { position: static; transform: none; text-align: center; margin-top: 40px; }
   }
 </style>
