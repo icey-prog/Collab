@@ -52,20 +52,20 @@
       <h2><span class="num">02</span> Pourquoi éphémère</h2>
       <div class="grid">
         <div class="card-p">
-          <div class="card-k">Friction zéro</div>
-          <p>Pas de signup. Pas d'invitation par email. Code 6 caractères, point.</p>
+          <div class="card-k">Zéro friction</div>
+          <p>Un code à 6 caractères. Pas de compte, pas d'email, pas d'attente.</p>
         </div>
         <div class="card-p">
-          <div class="card-k">Privacy by default</div>
-          <p>Aucune donnée conservée. TTL Redis = source de vérité. Pas de backup.</p>
+          <div class="card-k">Zéro trace</div>
+          <p>Rien n'est gardé. Après 4h, il ne reste littéralement rien.</p>
         </div>
         <div class="card-p">
-          <div class="card-k">Calme cognitif</div>
-          <p>Une room = un sujet, un temps limité. Pas d'historique à digérer.</p>
+          <div class="card-k">Un sujet, un temps</div>
+          <p>Pas d'historique à trier plus tard. La room ferme, le sujet est clos.</p>
         </div>
         <div class="card-p">
-          <div class="card-k">Performance Burkina</div>
-          <p>Bundle ~60KB. Utilisable sur connexion mobile instable.</p>
+          <div class="card-k">Léger, partout</div>
+          <p>Ça marche même sur une connexion faible.</p>
         </div>
       </div>
     </section>
@@ -73,28 +73,14 @@
     <section>
       <h2><span class="num">03</span> Cas d'usage</h2>
       <ul class="use-list">
-        <li><b>Réunions ad hoc</b> — bloc-notes partagé sans créer de doc Notion qu'on ne rouvrira jamais</li>
-        <li><b>Workshops</b> — Q&A avec votes en temps réel, sans inscription Slido</li>
-        <li><b>Support technique</b> — partage de fichier ponctuel sans WeTransfer ni email</li>
-        <li><b>Sessions formation</b> — drop zone collective autodétruite à la fin du cours</li>
-        <li><b>Brainstorm distant</b> — CRDT collaboratif Y.js, pas de conflit de merge</li>
+        <li><b>Réunion improvisée</b> — notes partagées, zéro doc à ranger après coup</li>
+        <li><b>Atelier ou cours</b> — questions triées par vote, fichiers déposés en un geste</li>
+        <li><b>Entre potes ou collègues</b> — un fichier à passer, sans mail ni compte à créer</li>
       </ul>
     </section>
 
     <section>
-      <h2><span class="num">04</span> Stack</h2>
-      <div class="stack-grid">
-        <div><span class="lbl">Frontend</span><span class="val">SvelteKit</span></div>
-        <div><span class="lbl">Backend</span><span class="val">Fastify · Socket.io</span></div>
-        <div><span class="lbl">CRDT</span><span class="val">Y.js</span></div>
-        <div><span class="lbl">State</span><span class="val">In-memory (TTL 4h)</span></div>
-        <div><span class="lbl">Desktop</span><span class="val">Tauri (Win/Linux/mac)</span></div>
-        <div><span class="lbl">Deploy</span><span class="val">Docker · Coolify · Vercel</span></div>
-      </div>
-    </section>
-
-    <section>
-      <h2><span class="num">05</span> EXXOLAB</h2>
+      <h2><span class="num">04</span> EXXOLAB</h2>
       <p class="prose">
         Atelier digital basé à Ouagadougou, Burkina Faso. Collab est notre outil interne de
         sessions courtes, ouvert en open-source pour les équipes qui partagent notre allergie
@@ -198,19 +184,6 @@
     background: var(--navy-04); line-height: 1.5;
   }
   .use-list b { color: var(--navy); font-weight: 600; }
-
-  /* stack */
-  .stack-grid {
-    display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
-  }
-  @media (max-width: 600px) { .stack-grid { grid-template-columns: 1fr; } }
-  .stack-grid > div {
-    display: flex; align-items: baseline; justify-content: space-between;
-    padding: 12px 16px; background: var(--surface); border-radius: var(--r-sm);
-  }
-  .stack-grid .lbl { font-size: 12px; color: var(--navy-50);
-                     text-transform: uppercase; letter-spacing: 0.06em; font-weight: 500; }
-  .stack-grid .val { font-family: var(--font-mono); font-size: 13px; color: var(--navy); }
 
   /* CTA band */
   .cta-band {
