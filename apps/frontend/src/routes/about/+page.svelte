@@ -15,18 +15,41 @@
     <header class="hero">
       <span class="eyebrow">À propos — EXXOLAB · Ouagadougou</span>
       <h1>
-        L'opposé de <span class="hl">Notion</span>.<br>
-        Par design.
+        Né d'une <span class="hl">frustration</span>.<br>
+        Construit pour durer 4h.
       </h1>
       <p class="lead">
-        Les outils de collaboration classiques imposent une création de compte, une gestion
-        de permissions, une persistance indésirable. <strong>Collab</strong> fait l'inverse :
-        une room en 1 clic, partagée par code, autodétruite après 4h.
+        <strong>Collab</strong> n'est pas sorti d'un brainstorm marketing. C'est l'outil
+        que je cherchais — et qui n'existait pas.
       </p>
     </header>
 
     <section>
-      <h2><span class="num">01</span> Pourquoi éphémère</h2>
+      <h2><span class="num">01</span> L'histoire</h2>
+      <div class="story">
+        <p>
+          Je travaille sur deux machines, deux distributions Linux différentes. Chaque fois
+          que je voulais juste passer un fichier ou une note de l'une à l'autre, il fallait
+          me connecter à un compte. Drive, WhatsApp Web, email… toujours un login, une
+          session ouverte, une trace de plus quelque part.
+        </p>
+        <p>
+          Puis à l'université, le même problème en pire : partager rapidement un document
+          entre amis, dans un amphi où la connexion passe mal. On finissait par se passer
+          des clés USB comme en 2005.
+        </p>
+        <p>
+          Alors j'ai construit l'outil que je cherchais : une room qui se crée en deux
+          secondes, un code à six caractères, un QR à scanner — et tout le monde partage
+          notes, fichiers et questions en temps réel. <strong>Sans compte. Sans
+          installation. Sans trace : tout s'efface après 4 heures.</strong>
+        </p>
+        <p class="story-end">C'est tout. C'est peu. Et c'est exactement ce qu'il fallait.</p>
+      </div>
+    </section>
+
+    <section>
+      <h2><span class="num">02</span> Pourquoi éphémère</h2>
       <div class="grid">
         <div class="card-p">
           <div class="card-k">Friction zéro</div>
@@ -48,7 +71,7 @@
     </section>
 
     <section>
-      <h2><span class="num">02</span> Cas d'usage</h2>
+      <h2><span class="num">03</span> Cas d'usage</h2>
       <ul class="use-list">
         <li><b>Réunions ad hoc</b> — bloc-notes partagé sans créer de doc Notion qu'on ne rouvrira jamais</li>
         <li><b>Workshops</b> — Q&A avec votes en temps réel, sans inscription Slido</li>
@@ -59,19 +82,19 @@
     </section>
 
     <section>
-      <h2><span class="num">03</span> Stack</h2>
+      <h2><span class="num">04</span> Stack</h2>
       <div class="stack-grid">
-        <div><span class="lbl">Frontend</span><span class="val">SvelteKit · Tailwind</span></div>
+        <div><span class="lbl">Frontend</span><span class="val">SvelteKit</span></div>
         <div><span class="lbl">Backend</span><span class="val">Fastify · Socket.io</span></div>
         <div><span class="lbl">CRDT</span><span class="val">Y.js</span></div>
-        <div><span class="lbl">State</span><span class="val">Redis 7 (TTL)</span></div>
-        <div><span class="lbl">Fichiers</span><span class="val">Cloudflare R2</span></div>
-        <div><span class="lbl">Deploy</span><span class="val">Docker · Nginx · PM2</span></div>
+        <div><span class="lbl">State</span><span class="val">In-memory (TTL 4h)</span></div>
+        <div><span class="lbl">Desktop</span><span class="val">Tauri (Win/Linux/mac)</span></div>
+        <div><span class="lbl">Deploy</span><span class="val">Docker · Coolify · Vercel</span></div>
       </div>
     </section>
 
     <section>
-      <h2><span class="num">04</span> EXXOLAB</h2>
+      <h2><span class="num">05</span> EXXOLAB</h2>
       <p class="prose">
         Atelier digital basé à Ouagadougou, Burkina Faso. Collab est notre outil interne de
         sessions courtes, ouvert en open-source pour les équipes qui partagent notre allergie
@@ -139,6 +162,17 @@
     color: var(--navy-40); font-weight: 500;
   }
   .prose { font-size: 15px; color: var(--navy-70); line-height: 1.65; max-width: 580px; }
+
+  /* story */
+  .story { max-width: 620px; }
+  .story p {
+    font-size: 15.5px; color: var(--navy-70); line-height: 1.7; margin: 0 0 18px;
+  }
+  .story strong { color: var(--navy); font-weight: 600; }
+  .story-end {
+    font-family: var(--font-head); font-weight: 600; font-size: 17px;
+    color: var(--navy) !important; margin-top: 4px;
+  }
 
   /* feature grid */
   .grid {

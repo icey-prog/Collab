@@ -87,7 +87,10 @@
         Un instant.<br>
         <span class="hl">Disparu après.</span>
       </h1>
-      <div class="hero-sub">Anonyme. Temps réel. Sans compte.</div>
+      <div class="hero-sub">
+        Notes, fichiers et questions partagés en temps réel — sans compte,
+        sans installation. Un code, un QR, c'est parti. Tout s'efface après 4&nbsp;heures.
+      </div>
 
       <div class="action">
 
@@ -216,6 +219,7 @@
   }
   .hero-sub {
     font-size: 15px; color: var(--navy-55); margin-top: 20px; font-weight: 400;
+    line-height: 1.6; max-width: 460px;
   }
 
   /* Action zone */
