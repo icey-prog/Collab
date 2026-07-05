@@ -17,6 +17,7 @@
   import { files,     type RoomFile } from '$lib/stores/files';
 
   import Sidebar      from '$lib/components/Sidebar.svelte';
+  import MobileNav    from '$lib/components/MobileNav.svelte';
   import NotesModule  from '$lib/components/NotesModule.svelte';
   import FilesModule  from '$lib/components/FilesModule.svelte';
   import QAModule     from '$lib/components/QAModule.svelte';
@@ -277,7 +278,7 @@
       {/if}
     </div>
 
-    <!-- Status bar bottom — IDE style -->
+    <!-- Status bar bottom — IDE style (desktop uniquement) -->
     <div class="statusbar">
       <div class="sb-left">
         <span class="sb-item">
@@ -297,6 +298,11 @@
     </div>
   </main>
 
+  <!-- Mobile : tab bar bas (Notes/Fichiers/Q&A) + sheet pour le secondaire.
+       Remplace la Sidebar desktop qui, à 375px, ne laissait que 55px pour
+       le contenu (320px de rail+panel fixes). -->
+  <MobileNav onClose={closeRoom} />
+
   <ToastStack />
 </div>
 
@@ -305,6 +311,13 @@
     display: flex; height: 100%; background: var(--paper); overflow: hidden;
   }
   .room-shell.dim .main { opacity: 0.7; pointer-events: none; }
+
+  /* Mobile : Sidebar masquée (display:none, ne prend plus de place dans le
+     flex row) — .room-shell passe en colonne pour empiler .main puis
+     MobileNav (tab bar) au lieu de les mettre côte à côte. */
+  @media (max-width: 767px) {
+    .room-shell { flex-direction: column; }
+  }
 
   .main {
     flex: 1; display: flex; flex-direction: column; min-width: 0;
@@ -450,5 +463,20 @@
   .sb-dot.on {
     background: #2E7D4F;
     box-shadow: 0 0 0 2px rgba(46,125,79,0.15);
+  }
+
+  /* ── Mobile : chrome IDE (breadcrumb, statusbar dev) retiré — infos
+     déjà dans le sheet MobileNav (participants, expire). Placé en fin de
+     bloc <style> : à spécificité égale, l'ordre source décide, et ces
+     overrides doivent gagner sur .tab-row/.status/.statusbar définis plus haut. ── */
+  @media (max-width: 767px) {
+    .tab-row { display: none; }
+    .status { flex: 1; justify-content: space-between; }
+    .statusbar { display: none; }
+    .share-popover {
+      position: fixed; left: 16px; right: 16px; top: auto;
+      bottom: calc(72px + env(safe-area-inset-bottom));
+      min-width: 0; width: auto;
+    }
   }
 </style>

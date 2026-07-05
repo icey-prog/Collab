@@ -212,6 +212,12 @@
   }
   .sidebar.collapsed { width: 64px; }
   .sidebar.collapsed .panel { width: 0; opacity: 0; pointer-events: none; }
+
+  /* Mobile : remplacée par MobileNav (tab bar bas + sheet) — à 375px, rail+panel
+     fixes (320px) ne laissaient que 55px pour le bloc-notes. */
+  @media (max-width: 767px) {
+    .sidebar { display: none; }
+  }
   .rail-toggle :global(svg) { transition: transform .3s cubic-bezier(.4,0,.2,1); }
   .sidebar.collapsed .rail-toggle :global(svg) { transform: rotate(180deg); }
 
