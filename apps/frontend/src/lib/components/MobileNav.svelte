@@ -4,6 +4,7 @@
   import { files } from '$lib/stores/files';
   import PaletteSwitch from './PaletteSwitch.svelte';
   import NetworkBadge from './NetworkBadge.svelte';
+  import HeroCard from './HeroCard.svelte';
   import { mode, toggleMode } from '$lib/stores/theme';
 
   export let onClose: () => void;
@@ -72,6 +73,11 @@
   <div class="sheet-backdrop" on:click={closeSheet} role="presentation"></div>
   <div class="sheet" role="dialog" aria-label="Options">
     <div class="sheet-handle"></div>
+
+    <!-- Signature visuelle Collab — sans place dédiée dans la tab bar (pas
+         question de sacrifier un onglet Notes/Fichiers/Q&A pour ça), donc
+         reléguée ici plutôt que masquée entièrement sur mobile. -->
+    <HeroCard />
 
     <div class="sheet-row">
       <span class="sheet-label">Participants</span>

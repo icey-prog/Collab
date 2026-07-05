@@ -32,7 +32,11 @@ export function registerSocketHandlers(io: IOServer): void {
       r.participants.add(socket.id);
       joinedRoom = id;
 
-      socket.emit('room:joined', { participants: r.participants.size, isAdmin: isAdmin(id) });
+      // expiresInSec réel du serveur (source de vérité) : sans ça, le client
+      // repart toujours du défaut 4h — faux pour un joiner tardif, et jamais
+      // resynchronisé côté client après un setInterval gelé (veille du PC).
+      const expiresInSec = Math.max(0, Math.round((r.expiresAt - Date.now()) / 1000));
+      socket.emit('room:joined', { participants: r.participants.size, isAdmin: isAdmin(id), expiresInSec });
       socket.emit('qa:updated', publicQuestions(r));
       socket.emit('files:updated', publicFiles(r));
       io.to(id).emit('participants:count', { count: r.participants.size });

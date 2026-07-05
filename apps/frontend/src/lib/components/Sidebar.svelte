@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount, onDestroy } from 'svelte';
   import {
     activeModule, sbCollapsed, participants, isAdmin,
     expiresLabel, type Module
@@ -8,6 +7,7 @@
   import { files }     from '$lib/stores/files';
   import PaletteSwitch from './PaletteSwitch.svelte';
   import NetworkBadge from './NetworkBadge.svelte';
+  import HeroCard from './HeroCard.svelte';
   import { mode, toggleMode } from '$lib/stores/theme';
 
   export const roomId: string = '';   // injecté par parent mais pas consommé dans cette vue
@@ -17,27 +17,6 @@
   let copied = false;
   const setMod = (m: Module) => activeModule.set(m);
   const toggle = () => sbCollapsed.update((v) => !v);
-
-  // ── Multi-GIF Slider ──
-  const heroMedia = [
-    '/animations/hand_ball.gif',
-    '/animations/wardrobe.jpg',
-    '/animations/gratitude.gif',
-    '/animations/spongebob.png',
-    '/animations/fire_elmo.png'
-  ];
-  let currentMediaIdx = 0;
-  let mediaTimer: ReturnType<typeof setInterval>;
-
-  onMount(() => {
-    mediaTimer = setInterval(() => {
-      currentMediaIdx = (currentMediaIdx + 1) % heroMedia.length;
-    }, 30000); // 30s as requested
-  });
-
-  onDestroy(() => {
-    if (mediaTimer) clearInterval(mediaTimer);
-  });
 </script>
 
 <aside class="sidebar" class:collapsed={$sbCollapsed}>
@@ -109,16 +88,7 @@
     </div>
 
     <!-- Hero card animée — signature visuelle Collab -->
-    <div class="hero-card">
-      {#key currentMediaIdx}
-        <img
-          src={heroMedia[currentMediaIdx]}
-          alt="Animation"
-          class="hero-gif"
-          loading="lazy"
-        />
-      {/key}
-    </div>
+    <HeroCard />
 
     <nav class="sb-nav">
       <div class="nav-group">
@@ -290,27 +260,6 @@
     display: flex; align-items: center; justify-content: center;
   }
   .collapse:hover { background: var(--navy-06); color: var(--navy); }
-
-  /* Hero card animé — basket sur doigt = équilibre éphémère */
-  .hero-card {
-    margin: 8px 12px 16px;
-    overflow: hidden;
-    position: relative;
-    display: flex;
-    justify-content: center;
-  }
-  .hero-gif {
-    width: 100%; height: 140px;
-    object-fit: contain;
-    display: block;
-    mix-blend-mode: multiply;
-    animation: fade-in 0.8s ease-out forwards;
-  }
-  @keyframes fade-in {
-    from { opacity: 0; transform: scale(0.97); }
-    to { opacity: 1; transform: scale(1); }
-  }
-  :global(body.theme-dark) .hero-gif { mix-blend-mode: normal; }
 
   /* nav (Premium pill pattern) */
   .sb-nav {

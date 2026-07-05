@@ -36,6 +36,33 @@
   let purgeLocalData = false;
   let copied = false;
   let showShare = false;
+
+  // Alertes d'expiration — une seule fois par palier, y compris si la
+  // resynchro serveur (room:joined après reconnect) saute directement
+  // sous un seuil (ex. réveil du PC après une longue veille).
+  let expiryWarned10 = false;
+  let expiryWarned1  = false;
+  function checkExpiryWarnings(sec: number) {
+    if (sec <= 60 && !expiryWarned1) {
+      expiryWarned1 = true;
+      pushToast("La room expire dans moins d'1 minute", 'error', 6000);
+    } else if (sec <= 600 && !expiryWarned10) {
+      expiryWarned10 = true;
+      pushToast('La room expire dans moins de 10 minutes', 'info', 6000);
+    }
+  }
+
+  // Toast join/leave — lastParticipants=null ignore le premier compte reçu
+  // (notre propre arrivée), sinon on se notifierait nous-même en entrant.
+  let lastParticipants: number | null = null;
+  function handleParticipantsCount(n: number) {
+    if (lastParticipants !== null) {
+      if (n > lastParticipants) pushToast('Un participant a rejoint la room', 'info', 3000);
+      else if (n < lastParticipants) pushToast('Un participant a quitté la room', 'info', 3000);
+    }
+    lastParticipants = n;
+    participants.set(n);
+  }
   // Initialise synchroniquement avec window.location.origin pour éviter race
   // au premier clic share avant que getSharableBase() async ne résolve l'IP LAN.
   let joinUrl = typeof window !== 'undefined' && roomId
@@ -69,10 +96,19 @@
   async function wire() {
     const s = await initSocket();
 
-    s.on('room:joined', ({ participants: n, isAdmin: a }) => {
+    s.on('room:joined', ({ participants: n, isAdmin: a, expiresInSec: exp }) => {
+      lastParticipants = n;   // baseline — pas de toast pour notre propre arrivée
       participants.set(n);
       isAdmin.set(!!a);
       status.set('joined');
+      // Resync depuis le serveur (source de vérité) à CHAQUE join, y compris
+      // après reconnect (veille du PC) — sinon le countdown local reste figé
+      // sur son ancienne valeur, ou pire, repart du défaut 4h pour un joiner
+      // tardif qui rejoint une room déjà bien entamée.
+      if (typeof exp === 'number') {
+        expiresInSec.set(exp);
+        checkExpiryWarnings(exp);
+      }
       // Flush outbox ICI et pas sur l'event 'online' : le serveur droppe
       // silencieusement tout qa:add émis avant que le join soit re-traité.
       outboxFlush(s).then((count) => {
@@ -94,10 +130,14 @@
     s.on('room:closed', () => {
       status.set('closed');
       purgeLocalData = true;
-      goto(`/room/${roomId}/expired`);
+      pushToast("La room a été fermée par l'hôte", 'info', 3000);
+      // Laisse le toast s'afficher avant de quitter la page (ToastStack
+      // n'est monté que sur /room/[id], pas sur /expired — un goto immédiat
+      // le ferait disparaître avant même d'être vu).
+      setTimeout(() => goto(`/room/${roomId}/expired`), 1200);
     });
 
-    s.on('participants:count', ({ count }) => participants.set(count));
+    s.on('participants:count', ({ count }) => handleParticipantsCount(count));
 
     s.on('qa:updated',    (q: Question[]) => questions.set(q));
     s.on('files:updated', (f: RoomFile[]) => files.set(f));
@@ -139,7 +179,11 @@
 
     await wire();
     countdownTimer = setInterval(() => {
-      expiresInSec.update((s) => Math.max(0, s - 1));
+      expiresInSec.update((s) => {
+        const next = Math.max(0, s - 1);
+        checkExpiryWarnings(next);
+        return next;
+      });
     }, 1000);
 
     // Le flush de l'outbox se fait dans le handler 'room:joined' (wire) —
