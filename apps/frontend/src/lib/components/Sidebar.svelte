@@ -25,6 +25,25 @@
   <div class="rail">
     <a href="/" class="rlogo" title="Accueil">C</a>
 
+    <!-- Remonté ici (juste après le logo) — enterré en bas de la pile
+         d'icônes sans étiquette, il passait inaperçu ("trop caché"). -->
+    <button class="ri theme-ctl theme-ctl-top" on:click={toggleMode} title="Clair / sombre">
+      {#if $mode === 'dark'}
+        <svg viewBox="0 0 18 18" fill="none">
+          <path d="M14.5 10.8A6.3 6.3 0 0 1 7.2 3.5 6.3 6.3 0 1 0 14.5 10.8z"
+                stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+      {:else}
+        <svg viewBox="0 0 18 18" fill="none">
+          <circle cx="9" cy="9" r="3.6" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M9 1.6v1.9M9 14.5v1.9M1.6 9h1.9M14.5 9h1.9M3.7 3.7l1.3 1.3M13 13l1.3 1.3M14.3 3.7l-1.3 1.3M5 13l-1.3 1.3"
+                stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      {/if}
+    </button>
+
+    <div class="rsep"></div>
+
     <button class="ri rail-toggle" on:click={toggle} title="Afficher / masquer">
       <svg viewBox="0 0 18 18" fill="none">
         <path d="M11 5L7 9l4 4" stroke="currentColor" stroke-width="1.5"
@@ -56,21 +75,6 @@
     <PaletteSwitch variant="rail" />
 
     <div class="rspacer"></div>
-
-    <button class="ri theme-ctl" on:click={toggleMode} title="Clair / sombre">
-      {#if $mode === 'dark'}
-        <svg viewBox="0 0 18 18" fill="none">
-          <path d="M14.5 10.8A6.3 6.3 0 0 1 7.2 3.5 6.3 6.3 0 1 0 14.5 10.8z"
-                stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
-        </svg>
-      {:else}
-        <svg viewBox="0 0 18 18" fill="none">
-          <circle cx="9" cy="9" r="3.6" stroke="currentColor" stroke-width="1.5"/>
-          <path d="M9 1.6v1.9M9 14.5v1.9M1.6 9h1.9M14.5 9h1.9M3.7 3.7l1.3 1.3M13 13l1.3 1.3M14.3 3.7l-1.3 1.3M5 13l-1.3 1.3"
-                stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-        </svg>
-      {/if}
-    </button>
 
     <div class="ravatar" title={$isAdmin ? 'Vous · Admin' : 'Vous'}>V</div>
   </div>
@@ -225,6 +229,13 @@
     background: var(--surface-cream-strong);
     color: var(--navy);
   }
+  /* Distingue le bouton thème du reste des icônes (sinon il s'y noie) —
+     léger fond + couleur pleine au lieu du gris passe-partout de .ri. */
+  .theme-ctl-top {
+    background: var(--chartreuse); color: var(--accent-ink);
+  }
+  .theme-ctl-top:hover { background: var(--chartreuse); opacity: 0.85; }
+
   .rsep { width: 24px; height: 1px; background: var(--navy-10); margin: 8px 0; }
   .rspacer { flex: 1; }
   .ravatar {

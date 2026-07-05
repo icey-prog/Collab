@@ -9,14 +9,25 @@
 import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 
-const KEY_MODE = 'collab-theme';
-const KEY_PAL  = 'collab-palette';
+const KEY_MODE     = 'collab-theme';
+const KEY_EXPLICIT = 'collab-theme-explicit'; // posé seulement quand l'utilisateur clique le toggle
+const KEY_PAL      = 'collab-palette';
 
 export type Mode = 'light' | 'dark';
 export type Palette = 'a' | 'b' | 'c' | 'd';
 
-const initialMode: Mode =
-  browser && localStorage.getItem(KEY_MODE) === 'dark' ? 'dark' : 'light';
+// Choix explicite de l'utilisateur (localStorage) prioritaire ; sinon on
+// respecte la préférence système (prefers-color-scheme) plutôt que de
+// forcer 'light' par défaut.
+function detectInitialMode(): Mode {
+  if (!browser) return 'light';
+  if (localStorage.getItem(KEY_EXPLICIT) === '1') {
+    const saved = localStorage.getItem(KEY_MODE);
+    if (saved === 'dark' || saved === 'light') return saved;
+  }
+  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+const initialMode: Mode = detectInitialMode();
 
 const initialPal: Palette = (() => {
   if (!browser) return 'a';
@@ -37,10 +48,20 @@ if (browser) {
     if (p !== 'a') document.body.classList.add(`theme-${p}`);
     try { localStorage.setItem(KEY_PAL, p); } catch {}
   });
+
+  // Tant que l'utilisateur n'a pas cliqué le toggle lui-même, on suit les
+  // changements de thème système en direct (ex. bascule automatique du
+  // mode sombre au coucher du soleil sur macOS/Windows).
+  window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+    if (localStorage.getItem(KEY_EXPLICIT) === '1') return;
+    mode.set(e.matches ? 'dark' : 'light');
+  });
 }
 
-export const toggleMode = () =>
+export const toggleMode = () => {
+  try { localStorage.setItem(KEY_EXPLICIT, '1'); } catch {}
   mode.update((m) => (m === 'dark' ? 'light' : 'dark'));
+};
 
 export const setPalette = (p: Palette) => palette.set(p);
 
