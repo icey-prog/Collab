@@ -17,50 +17,54 @@
   const closeSheet = () => (sheetOpen = false);
 </script>
 
-<!-- Bottom tab bar — 3 destinations, icônes + labels, cible tactile ≥48px -->
+<!-- Bottom tab bar — pilule flottante glass, 3 destinations + Plus,
+     cible tactile ≥48px. Reste dans le flux (pas de position:fixed) pour
+     éviter le bug de collision déjà rencontré avec le footer landing. -->
 <nav class="mobile-tabbar" aria-label="Navigation room">
-  <button class="tab-btn" class:active={$activeModule === 'notes'} on:click={() => setMod('notes')}>
-    <span class="tab-ico">
-      <svg viewBox="0 0 18 18" fill="none">
-        <path d="M4 2.5h7L14.5 6v9.5H4z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
-        <path d="M10.5 2.5V6h4M6.5 9.5h5M6.5 12h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-      </svg>
-    </span>
-    <span class="tab-txt">Notes</span>
-  </button>
+  <div class="pill">
+    <button class="tab-btn" class:active={$activeModule === 'notes'} on:click={() => setMod('notes')}>
+      <span class="tab-ico">
+        <svg viewBox="0 0 18 18" fill="none">
+          <path d="M4 2.5h7L14.5 6v9.5H4z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+          <path d="M10.5 2.5V6h4M6.5 9.5h5M6.5 12h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+      </span>
+      <span class="tab-txt">Notes</span>
+    </button>
 
-  <button class="tab-btn" class:active={$activeModule === 'files'} on:click={() => setMod('files')}>
-    <span class="tab-ico">
-      <svg viewBox="0 0 18 18" fill="none">
-        <path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h3l1.5 1.8H14a1.5 1.5 0 0 1 1.5 1.5v6A1.5 1.5 0 0 1 14 14.8H4a1.5 1.5 0 0 1-1.5-1.5z"
-              stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
-      </svg>
-      {#if $files.length > 0}<span class="tab-badge">{$files.length}</span>{/if}
-    </span>
-    <span class="tab-txt">Fichiers</span>
-  </button>
+    <button class="tab-btn" class:active={$activeModule === 'files'} on:click={() => setMod('files')}>
+      <span class="tab-ico">
+        <svg viewBox="0 0 18 18" fill="none">
+          <path d="M2.5 5.5A1.5 1.5 0 0 1 4 4h3l1.5 1.8H14a1.5 1.5 0 0 1 1.5 1.5v6A1.5 1.5 0 0 1 14 14.8H4a1.5 1.5 0 0 1-1.5-1.5z"
+                stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/>
+        </svg>
+        {#if $files.length > 0}<span class="tab-badge">{$files.length}</span>{/if}
+      </span>
+      <span class="tab-txt">Fichiers</span>
+    </button>
 
-  <button class="tab-btn" class:active={$activeModule === 'qa'} on:click={() => setMod('qa')}>
-    <span class="tab-ico">
-      <svg viewBox="0 0 18 18" fill="none">
-        <path d="M9 2.5l2 4 4.5.5-3.2 3 0.9 4.5L9 12.4 4.8 14.5l.9-4.5L2.5 7l4.5-.5z"
-              stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
-      </svg>
-      {#if $questions.length > 0}<span class="tab-badge">{$questions.length}</span>{/if}
-    </span>
-    <span class="tab-txt">Q&amp;A</span>
-  </button>
+    <button class="tab-btn" class:active={$activeModule === 'qa'} on:click={() => setMod('qa')}>
+      <span class="tab-ico">
+        <svg viewBox="0 0 18 18" fill="none">
+          <path d="M9 2.5l2 4 4.5.5-3.2 3 0.9 4.5L9 12.4 4.8 14.5l.9-4.5L2.5 7l4.5-.5z"
+                stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/>
+        </svg>
+        {#if $questions.length > 0}<span class="tab-badge">{$questions.length}</span>{/if}
+      </span>
+      <span class="tab-txt">Q&amp;A</span>
+    </button>
 
-  <button class="tab-btn" on:click={() => (sheetOpen = true)} aria-label="Plus d'options">
-    <span class="tab-ico">
-      <svg viewBox="0 0 18 18" fill="none">
-        <circle cx="4" cy="9" r="1.4" fill="currentColor"/>
-        <circle cx="9" cy="9" r="1.4" fill="currentColor"/>
-        <circle cx="14" cy="9" r="1.4" fill="currentColor"/>
-      </svg>
-    </span>
-    <span class="tab-txt">Plus</span>
-  </button>
+    <button class="tab-btn" on:click={() => (sheetOpen = true)} aria-label="Plus d'options">
+      <span class="tab-ico">
+        <svg viewBox="0 0 18 18" fill="none">
+          <circle cx="4" cy="9" r="1.4" fill="currentColor"/>
+          <circle cx="9" cy="9" r="1.4" fill="currentColor"/>
+          <circle cx="14" cy="9" r="1.4" fill="currentColor"/>
+        </svg>
+      </span>
+      <span class="tab-txt">Plus</span>
+    </button>
+  </div>
 </nav>
 
 <!-- Bottom sheet — infos room + réglages, hors du flux tab bar -->
@@ -101,34 +105,51 @@
 {/if}
 
 <style>
+  /* Fixed + flottante : pour qu'un vrai effet glass soit visible, la pilule
+     doit survoler du contenu qui défile en-dessous (sinon backdrop-filter
+     n'a rien à flouter). Le contenu (.module) réserve l'espace correspondant
+     via padding-bottom — pas de collision (cf. bug footer landing précédent). */
   .mobile-tabbar {
-    display: flex; align-items: stretch;
-    height: calc(56px + env(safe-area-inset-bottom));
-    padding-bottom: env(safe-area-inset-bottom);
-    background: var(--paper);
-    border-top: 1px solid var(--navy-10);
-    flex-shrink: 0;
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 300;
+    display: flex; justify-content: center;
+    padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+    pointer-events: none;
   }
+  .mobile-tabbar .pill { pointer-events: auto; }
   /* Desktop : Sidebar reprend la navigation, la tab bar disparaît. */
   @media (min-width: 768px) {
     .mobile-tabbar { display: none; }
   }
+
+  .pill {
+    display: flex; align-items: stretch;
+    width: 100%; max-width: 420px; height: 60px;
+    border-radius: 30px;
+    background: color-mix(in srgb, var(--surface) 68%, transparent);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid var(--navy-10);
+    box-shadow: 0 8px 28px rgba(27,36,69,0.14), 0 1px 2px rgba(27,36,69,0.06);
+  }
+
   .tab-btn {
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 2px; min-height: 48px;
     border: none; background: transparent; color: var(--navy-45);
     cursor: pointer;
   }
+  .tab-btn:first-child { border-radius: 30px 0 0 30px; }
+  .tab-btn:last-child  { border-radius: 0 30px 30px 0; }
   .tab-btn.active { color: var(--navy); }
   .tab-ico { width: 20px; height: 20px; position: relative; }
   .tab-ico svg { width: 100%; height: 100%; }
-  .tab-txt { font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em; }
+  .tab-txt { font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em; line-height: 1; }
   .tab-badge {
     position: absolute; top: -4px; right: -8px;
     background: var(--chartreuse); color: var(--accent-ink);
     font-size: 9px; font-weight: 700; min-width: 14px; height: 14px;
     border-radius: 7px; display: flex; align-items: center; justify-content: center;
-    padding: 0 3px;
+    padding: 0 3px; line-height: 1;
   }
 
   .sheet-backdrop {

@@ -312,13 +312,6 @@
   }
   .room-shell.dim .main { opacity: 0.7; pointer-events: none; }
 
-  /* Mobile : Sidebar masquée (display:none, ne prend plus de place dans le
-     flex row) — .room-shell passe en colonne pour empiler .main puis
-     MobileNav (tab bar) au lieu de les mettre côte à côte. */
-  @media (max-width: 767px) {
-    .room-shell { flex-direction: column; }
-  }
-
   .main {
     flex: 1; display: flex; flex-direction: column; min-width: 0;
     background: var(--paper);
@@ -471,11 +464,25 @@
      overrides doivent gagner sur .tab-row/.status/.statusbar définis plus haut. ── */
   @media (max-width: 767px) {
     .tab-row { display: none; }
-    .status { flex: 1; justify-content: space-between; }
+    /* Fix : justify-content:space-between répartissait les 4 enfants
+       (badge, share, séparateur, pill) à intervalles égaux — le séparateur
+       .status-sep se retrouvait à flotter au milieu avec un gros espace
+       de chaque côté. On garde le flux naturel et on pousse seulement
+       la pill de connexion à droite. */
+    .status { flex: 1; }
+    .status .pill { margin-left: auto; }
+    /* Le séparateur n'a de sens qu'entre badge+share ET la pill quand ils
+       sont tous packés (desktop) — une fois la pill poussée à droite par
+       margin-left:auto, il se retrouve orphelin juste après le bouton
+       partager avec un grand vide avant la pill. Inutile sur mobile. */
+    .status-sep { display: none; }
     .statusbar { display: none; }
+    /* MobileNav (pilule ~60px + 8px de marge haut/bas) est fixed en bas —
+       réserver l'espace pour que le dernier contenu ne soit pas masqué. */
+    .module { padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
     .share-popover {
       position: fixed; left: 16px; right: 16px; top: auto;
-      bottom: calc(72px + env(safe-area-inset-bottom));
+      bottom: calc(84px + env(safe-area-inset-bottom));
       min-width: 0; width: auto;
     }
   }

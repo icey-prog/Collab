@@ -4,16 +4,12 @@
   import { getSocket } from '$lib/socket';
   import { isOnline } from '$lib/stores/network';
   import { apiFetch, apiUrl } from '$lib/api/http';
+  import { getFileIconLabel, getFileIconStyle } from '$lib/utils/fileIcon';
 
   export let roomId: string;
 
   let dragOver = false;
   let inputEl: HTMLInputElement;
-
-  function ext(name: string) {
-    const m = /\.([^.]+)$/.exec(name);
-    return (m ? m[1] : 'FILE').slice(0, 4).toUpperCase();
-  }
   function fmtSize(b: number) {
     if (b < 1024) return `${b} o`;
     if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} Ko`;
@@ -113,7 +109,9 @@
     <div class="file-list">
       {#each $files as f (f.key)}
         <div class="file-card">
-          <div class="file-ico">{ext(f.name)}</div>
+          <div class="file-ico" style="background:{getFileIconStyle(f.name).bg}; color:{getFileIconStyle(f.name).fg};">
+            {getFileIconLabel(f.name)}
+          </div>
           <div class="file-meta">
             <div class="file-name">{f.name}</div>
             <div class="file-sub">{fmtSize(f.size)} · {fmtExpiry(f.expiresAt)}</div>
@@ -202,8 +200,8 @@
     box-shadow: 0 2px 12px rgba(0,0,0,0.05);
   }
   .file-ico {
+    /* background/color posés inline par fichier — voir lib/utils/fileIcon.ts */
     width: 40px; height: 40px; border-radius: var(--r-sm);
-    background: rgba(149,177,238,0.18); color: #3F5B9E;
     display: flex; align-items: center; justify-content: center;
     font-family: var(--font-mono); font-size: 11px; font-weight: 500;
     flex-shrink: 0;
