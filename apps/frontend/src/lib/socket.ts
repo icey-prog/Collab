@@ -30,10 +30,16 @@ export async function initSocket(): Promise<Socket> {
     });
 
     if (import.meta.env.DEV) {
-      s.on('connect',       () => console.debug('[socket] connected', s.id));
-      s.on('disconnect',    (r) => console.debug('[socket] disconnect', r));
-      s.on('connect_error', (e) => console.warn('[socket] error', e.message));
+      s.on('connect',    () => console.debug('[socket] connected', s.id));
+      s.on('disconnect', (r) => console.debug('[socket] disconnect', r));
     }
+    // Toujours actif (pas gated DEV) : sans ça un handshake refusé (CORS,
+    // backend down, mauvaise VITE_API_URL) ne laisse aucune trace en prod —
+    // exactement ce qui a rendu le bug CORS de la dernière session invisible
+    // jusqu'à investigation manuelle. console.error reste consultable via
+    // les devtools d'un utilisateur qui rapporte un souci.
+    s.on('connect_error', (e) => console.error('[socket] connect_error:', e.message));
+    s.io.on('reconnect_failed', () => console.error('[socket] reconnect_failed: abandon après les tentatives max'));
     socket = s;
     return s;
   })();

@@ -15,6 +15,10 @@ import { isRoomAdminFromCookieHeader } from '../lib/auth';
 export function registerSocketHandlers(io: IOServer): void {
   io.on('connection', (socket: Socket) => {
     let joinedRoom: string | null = null;
+    // Socket.io s'attache directement au serveur HTTP brut (hors pipeline
+    // Fastify) — sans ces logs, connexions/déconnexions et échecs de join
+    // sont invisibles côté serveur, seul le client sait ce qui se passe.
+    console.log(`[socket] connect ${socket.id} origin=${socket.handshake.headers.origin ?? '?'}`);
 
     const isAdmin = (roomId: string): boolean => {
       const r = getRoom(roomId);
@@ -24,13 +28,23 @@ export function registerSocketHandlers(io: IOServer): void {
 
     socket.on('join:room', ({ roomId }: { roomId: string }) => {
       const id = String(roomId ?? '').toUpperCase();
-      if (!/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/.test(id)) { socket.emit('room:error', { code: 'INVALID' }); return; }
+      if (!/^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}$/.test(id)) {
+        console.warn(`[socket] join refusé (code invalide) ${socket.id} → "${id}"`);
+        socket.emit('room:error', { code: 'INVALID' }); return;
+      }
       const r = getRoom(id);
-      if (!r) { socket.emit('room:error', { code: 'NOT_FOUND' }); return; }
-      if (r.participants.size >= MAX_PARTICIPANTS) { socket.emit('room:full'); return; }
+      if (!r) {
+        console.warn(`[socket] join refusé (room introuvable) ${socket.id} → ${id}`);
+        socket.emit('room:error', { code: 'NOT_FOUND' }); return;
+      }
+      if (r.participants.size >= MAX_PARTICIPANTS) {
+        console.warn(`[socket] join refusé (room pleine) ${socket.id} → ${id}`);
+        socket.emit('room:full'); return;
+      }
       socket.join(id);
       r.participants.add(socket.id);
       joinedRoom = id;
+      console.log(`[socket] join ${socket.id} → ${id} (${r.participants.size}/${MAX_PARTICIPANTS})`);
 
       // expiresInSec réel du serveur (source de vérité) : sans ça, le client
       // repart toujours du défaut 4h — faux pour un joiner tardif, et jamais
@@ -118,7 +132,8 @@ export function registerSocketHandlers(io: IOServer): void {
     });
 
     /* Disconnect */
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
+      console.log(`[socket] disconnect ${socket.id} (${reason})${joinedRoom ? ` room=${joinedRoom}` : ''}`);
       if (!joinedRoom) return;
       const r = rooms.get(joinedRoom);
       if (r) {

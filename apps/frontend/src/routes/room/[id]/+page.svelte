@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
+  import { get } from 'svelte/store';
   import { goto }    from '$app/navigation';
   import { page }    from '$app/stores';
   import * as Y from 'yjs';
@@ -31,6 +32,7 @@
 
   let yBundle: YDocBundle | null = null;
   let countdownTimer: ReturnType<typeof setInterval> | null = null;
+  let connectWatchdog: ReturnType<typeof setTimeout> | null = null;
   // Promesse "éphémère" : quand la room est close/expirée, on purge aussi la
   // copie locale y-indexeddb (sinon les notes survivent indéfiniment au TTL 4h).
   let purgeLocalData = false;
@@ -96,7 +98,32 @@
   async function wire() {
     const s = await initSocket();
 
+    // Watchdog : si aucune connexion réussie après 10s (CORS refusé, backend
+    // down, mauvaise VITE_API_URL...), on sort du spinner "Connexion…" infini
+    // vers un état d'erreur explicite. Sans ça, un handshake qui échoue en
+    // boucle laisse l'utilisateur devant un chargement qui ne finit jamais,
+    // sans le moindre indice (cf. régression CORS de la session précédente).
+    connectWatchdog = setTimeout(() => {
+      if (get(status) === 'connecting') {
+        status.set('error');
+        pushToast('Connexion au serveur impossible — vérifiez votre réseau', 'error', 6000);
+      }
+    }, 10000);
+    const clearWatchdog = () => {
+      if (connectWatchdog) { clearTimeout(connectWatchdog); connectWatchdog = null; }
+    };
+
+    // Toujours actif (pas seulement DEV) : un échec de handshake doit être
+    // visible pour l'utilisateur, pas juste dans la console. Pas de toast à
+    // chaque tentative (Socket.io retente seul en arrière-plan) — seulement
+    // tant qu'on n'a jamais réussi le premier join, le watchdog ci-dessus
+    // gère l'escalade vers un état d'erreur si ça persiste.
+    s.on('connect_error', (err) => {
+      console.error('[room] connect_error:', err.message);
+    });
+
     s.on('room:joined', ({ participants: n, isAdmin: a, expiresInSec: exp }) => {
+      clearWatchdog();
       lastParticipants = n;   // baseline — pas de toast pour notre propre arrivée
       participants.set(n);
       isAdmin.set(!!a);
@@ -193,6 +220,7 @@
 
   onDestroy(() => {
     if (countdownTimer) clearInterval(countdownTimer);
+    if (connectWatchdog) clearTimeout(connectWatchdog);
     yBundle?.destroy();
     yBundle = null;
     if (purgeLocalData && typeof indexedDB !== 'undefined') {
@@ -300,6 +328,8 @@
           <span class="pill pill-error">Room introuvable</span>
         {:else if $status === 'closed'}
           <span class="pill pill-warn">Room fermée</span>
+        {:else if $status === 'error'}
+          <span class="pill pill-error">Connexion impossible</span>
         {/if}
       </div>
     </div>
@@ -308,6 +338,12 @@
       {#if $status === 'connecting'}
         <div class="connect-overlay">
           <Loader size="lg" label="Établissement de la connexion…" />
+        </div>
+      {:else if $status === 'error'}
+        <div class="connect-overlay error-overlay">
+          <p class="error-msg">Impossible de se connecter au serveur.</p>
+          <p class="error-sub">Vérifiez votre connexion internet, ou réessayez.</p>
+          <button class="btn btn-cta" on:click={() => window.location.reload()}>Réessayer</button>
         </div>
       {:else if $activeModule === 'notes' && yBundle}
         <NotesModule
@@ -471,6 +507,9 @@
     flex: 1;
     display: flex; align-items: center; justify-content: center;
   }
+  .error-overlay { flex-direction: column; gap: 6px; text-align: center; }
+  .error-msg { font-size: 16px; font-weight: 600; color: var(--navy); margin: 0; }
+  .error-sub { font-size: 13px; color: var(--navy-55); margin: 0 0 14px; }
 
   /* ── Status bar bottom (IDE style) ── */
   .statusbar {

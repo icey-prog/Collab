@@ -20,6 +20,11 @@ export function corsOriginCheck(
   // Déploiement Vercel du frontend (prod). Les previews éphémères passent
   // par FRONT_ORIGIN si besoin — pas de wildcard *.vercel.app avec credentials.
   if (origin === 'https://collab-one-lac.vercel.app') return cb(null, true);
+  // Log volontairement systématique (pas juste en dev) : un mismatch de
+  // domaine ici (ex. redéploiement Vercel qui change de nom de projet)
+  // se traduit côté client par un simple "chargement infini" sans indice —
+  // ce log est la seule trace qui permette de diagnostiquer sans deviner.
+  console.warn(`[cors] origine refusée: ${origin}`);
   return cb(null, false);
 }
 

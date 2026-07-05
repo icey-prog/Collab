@@ -5,7 +5,7 @@
 import { writable, derived } from 'svelte/store';
 
 export type Module = 'notes' | 'files' | 'qa';
-export type RoomStatus = 'connecting' | 'joined' | 'full' | 'not_found' | 'closed';
+export type RoomStatus = 'connecting' | 'joined' | 'full' | 'not_found' | 'closed' | 'error';
 
 export const participants = writable<number>(0);
 export const isAdmin      = writable<boolean>(false);
