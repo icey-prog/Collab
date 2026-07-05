@@ -1,6 +1,30 @@
 # Déploiement backend Collab — Coolify
 
-## 1. Créer la ressource
+## 🔄 Mettre à jour un backend déjà déployé
+
+La ressource Coolify existe déjà (tu l'as suivie une première fois) et tu
+veux juste appliquer les derniers commits `main` :
+
+1. Coolify → ouvre la ressource **collab-backend**
+2. Bouton **Deploy** (ou **Redeploy**) en haut à droite
+3. Coolify fait `git pull` sur `main`, rebuild l'image (bundle esbuild ~30 s),
+   remplace le conteneur — le volume `collab-uploads` n'est pas touché
+4. Vérifie que ça a pris :
+   ```bash
+   curl -X POST https://collab-backend.duckdns.org/room/create
+   # → {"roomId":"XXXXXX"}
+   ```
+   Puis teste un vrai join depuis un second appareil sur `https://collab-one-lac.vercel.app`.
+
+> Si l'auto-deploy webhook est activé (§6), rien à faire — ça se redéploie
+> tout seul quelques minutes après un `git push` sur `main`.
+
+**Rien d'autre à changer** : `FRONT_ORIGIN`, le domaine et le volume restent
+ceux déjà configurés — seul le code de l'image change.
+
+---
+
+## 1. Créer la ressource (première installation uniquement)
 
 Coolify → **New Resource** → **Public Repository**
 
