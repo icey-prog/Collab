@@ -40,7 +40,10 @@ app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body,
 
 app.register(cors, { origin: corsOriginCheck, credentials: true });
 app.register(cookie);
-app.register(multipart, { limits: { fileSize: MAX_FILE_BYTES } });
+// files:1 — un seul fichier par requête : la route upload ne lit que le
+// premier part ; sans ce plafond, des parts supplémentaires seraient
+// consommés (bande passante) sans être ni comptés ni stockés.
+app.register(multipart, { limits: { fileSize: MAX_FILE_BYTES, files: 1 } });
 // Anti-DoS : 60 req/min global par IP ; create/upload ont des limites
 // dédiées plus strictes (config par route).
 app.register(rateLimit, { max: 60, timeWindow: '1 minute' });

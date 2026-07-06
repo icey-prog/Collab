@@ -8,13 +8,13 @@
 
   export let roomId: string;
 
-  const MAX_FILE_BYTES = 10 * 1024 * 1024;   // reflète le cap serveur MAX_FILE_BYTES
-  const MAX_BATCH_BYTES = 50 * 1024 * 1024;  // reflète le cap serveur MAX_ROOM_BYTES
+  const MAX_FILE_BYTES = 500 * 1024 * 1024;    // reflète le cap serveur MAX_FILE_BYTES
+  const MAX_BATCH_BYTES = 1024 * 1024 * 1024;  // reflète le cap serveur MAX_ROOM_BYTES
 
   const ERROR_MESSAGES: Record<string, string> = {
-    ROOM_QUOTA_FULL:  'Quota de la room atteint (50 Mo cumulés)',
+    ROOM_QUOTA_FULL:  'Quota de la room atteint (1 Go cumulés)',
     ROOM_FILES_LIMIT: 'Trop de fichiers dans cette room (20 max)',
-    TOO_LARGE:        'Fichier trop lourd (10 Mo max)',
+    TOO_LARGE:        'Fichier trop lourd (500 Mo max)',
     NOT_FOUND:        'Room introuvable',
     NO_FILE:          'Aucun fichier reçu',
   };
@@ -33,7 +33,8 @@
   function fmtSize(b: number) {
     if (b < 1024) return `${b} o`;
     if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} Ko`;
-    return `${(b / (1024 * 1024)).toFixed(1)} Mo`;
+    if (b < 1024 * 1024 * 1024) return `${(b / (1024 * 1024)).toFixed(1)} Mo`;
+    return `${(b / (1024 * 1024 * 1024)).toFixed(2)} Go`;
   }
   function fmtExpiry(at: number) {
     const left = at - Date.now();
@@ -77,18 +78,18 @@
     // Vérif proactive du lot AVANT tout envoi — évite un échec partiel
     // silencieux au milieu d'un dossier (certains fichiers passent, d'autres
     // non, sans qu'on comprenne pourquoi). Reflète le cap serveur
-    // MAX_ROOM_BYTES (50 Mo cumulés/room), vérifié ici en amont.
+    // MAX_ROOM_BYTES (1 Go cumulés/room), vérifié ici en amont.
     if (fileList.length > 1) {
       const totalBytes = fileList.reduce((s, f) => s + f.size, 0);
       if (totalBytes > MAX_BATCH_BYTES) {
-        pushToast(`Lot trop volumineux (${fmtSize(totalBytes)} > 50 Mo) — rien n'a été envoyé`, 'info', 6000);
+        pushToast(`Lot trop volumineux (${fmtSize(totalBytes)} > 1 Go) — rien n'a été envoyé`, 'info', 6000);
         return;
       }
     }
 
     for (const file of fileList) {
       if (file.size > MAX_FILE_BYTES) {
-        pushToast(`${file.name} — Fichier trop lourd (10 Mo max)`, 'info', 4000);
+        pushToast(`${file.name} — Fichier trop lourd (500 Mo max)`, 'info', 4000);
         continue;
       }
       const id = crypto.randomUUID();
@@ -188,7 +189,7 @@
       {#if $files.length > 0}
         <span class="zone-count">{$files.length}</span>
       {/if}
-      <span class="zone-tag">10 Mo/fichier · 50 Mo/room · 24h</span>
+      <span class="zone-tag">500 Mo/fichier · 1 Go/room · 24h</span>
     </div>
     <p class="zone-desc">Déposez des fichiers (ou un dossier entier) pour les partager avec tous les participants. Ils expirent automatiquement après 24h.</p>
   </div>
@@ -209,7 +210,7 @@
       <img src="/animations/file_share.gif" alt="" class="dz-gif" loading="lazy" />
     </span>
     <div class="dz-title">Glissez vos fichiers ici</div>
-    <div class="dz-sub mono">10 Mo/fichier · 50 Mo/dossier</div>
+    <div class="dz-sub mono">500 Mo/fichier · 1 Go/dossier</div>
     <button
       class="btn btn-ghost folder-btn"
       on:click|stopPropagation={() => folderInputEl.click()}
