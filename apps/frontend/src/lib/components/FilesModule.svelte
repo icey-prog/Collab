@@ -216,9 +216,16 @@
     >
       Importer un dossier
     </button>
-    <input bind:this={inputEl} type="file" multiple hidden on:change={onPick} />
+    <!-- stopPropagation ici : sans ça, le .click() programmatique déclenché
+         par le bouton "Importer un dossier" (ou un futur clic direct sur ces
+         inputs) émet son propre événement clic qui remonte au .dropzone
+         parent et rouvre EN PLUS le sélecteur de fichiers classique — deux
+         zones d'upload s'ouvrent simultanément. Le stopPropagation du bouton
+         ne protège que SON click à lui, pas celui, distinct, de l'input. -->
+    <input bind:this={inputEl} type="file" multiple hidden on:change={onPick} on:click|stopPropagation />
     <input
       bind:this={folderInputEl} type="file" multiple hidden on:change={onPick}
+      on:click|stopPropagation
       use:webkitdir
     />
   </div>
