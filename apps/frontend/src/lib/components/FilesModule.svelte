@@ -97,8 +97,50 @@
     }
   }
 
-  function onDrop(e: DragEvent) {
+  // Lit récursivement un dossier glissé. dataTransfer.files traite un
+  // dossier déposé comme un faux "fichier" de 0 octet — tenter de l'uploader
+  // tel quel échoue au moment où le navigateur essaie d'en lire le contenu
+  // (c'est l'erreur observée). L'API FileSystemEntry donne accès au vrai
+  // contenu du dossier.
+  async function readEntry(entry: FileSystemEntry): Promise<File[]> {
+    if (entry.isFile) {
+      return new Promise((resolve) => {
+        (entry as FileSystemFileEntry).file((file) => resolve([file]), () => resolve([]));
+      });
+    }
+    if (entry.isDirectory) {
+      const reader = (entry as FileSystemDirectoryEntry).createReader();
+      const allEntries: FileSystemEntry[] = [];
+      // readEntries() ne renvoie pas tout en un seul appel pour les gros
+      // dossiers — il faut boucler jusqu'à obtenir un lot vide.
+      for (;;) {
+        const batch = await new Promise<FileSystemEntry[]>((resolve) => {
+          reader.readEntries(resolve, () => resolve([]));
+        });
+        if (batch.length === 0) break;
+        allEntries.push(...batch);
+      }
+      const nested = await Promise.all(allEntries.map(readEntry));
+      return nested.flat();
+    }
+    return [];
+  }
+
+  async function onDrop(e: DragEvent) {
     e.preventDefault(); dragOver = false;
+
+    const items = e.dataTransfer?.items;
+    if (items && items.length > 0) {
+      const entries = Array.from(items)
+        .map((it) => it.webkitGetAsEntry())
+        .filter((en): en is FileSystemEntry => en !== null);
+      if (entries.length > 0) {
+        const fileLists = await Promise.all(entries.map(readEntry));
+        uploadBatch(fileLists.flat());
+        return;
+      }
+    }
+
     if (!e.dataTransfer?.files) return;
     uploadBatch(Array.from(e.dataTransfer.files));
   }
