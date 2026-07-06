@@ -3,6 +3,11 @@
   "buildCommand": "npm run build",
   "outputDirectory": "build",
   "framework": null,
+  "cleanUrls": true,
+  "rewrites": [
+    { "source": "/room/(.*)", "destination": "/index.html" },
+    { "source": "/join/(.*)", "destination": "/index.html" }
+  ],
   "headers": [
     {
       "source": "/(.*)",

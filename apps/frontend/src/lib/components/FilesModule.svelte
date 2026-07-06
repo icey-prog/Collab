@@ -3,13 +3,33 @@
   import { isAdmin, pushToast } from '$lib/stores/room';
   import { getSocket } from '$lib/socket';
   import { isOnline } from '$lib/stores/network';
-  import { apiFetch, apiUrl } from '$lib/api/http';
+  import { apiFetch, apiUrl, downloadFile } from '$lib/api/http';
   import { getFileIconLabel, getFileIconStyle } from '$lib/utils/fileIcon';
 
   export let roomId: string;
 
+  const MAX_FILE_BYTES = 10 * 1024 * 1024;   // reflète le cap serveur MAX_FILE_BYTES
+  const MAX_BATCH_BYTES = 50 * 1024 * 1024;  // reflète le cap serveur MAX_ROOM_BYTES
+
+  const ERROR_MESSAGES: Record<string, string> = {
+    ROOM_QUOTA_FULL:  'Quota de la room atteint (50 Mo cumulés)',
+    ROOM_FILES_LIMIT: 'Trop de fichiers dans cette room (20 max)',
+    TOO_LARGE:        'Fichier trop lourd (10 Mo max)',
+    NOT_FOUND:        'Room introuvable',
+    NO_FILE:          'Aucun fichier reçu',
+  };
+
   let dragOver = false;
   let inputEl: HTMLInputElement;
+  let folderInputEl: HTMLInputElement;
+  let downloadingKey: string | null = null;
+
+  // Entrées locales affichées immédiatement à la sélection, avant même que
+  // le serveur ait répondu — sinon rien ne bouge à l'écran pendant tout
+  // le round-trip réseau (upload silencieux, semble figé).
+  interface PendingUpload { id: string; name: string; size: number; error?: string }
+  let pending: PendingUpload[] = [];
+
   function fmtSize(b: number) {
     if (b < 1024) return `${b} o`;
     if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} Ko`;
@@ -22,15 +42,7 @@
     return h > 0 ? `Expire dans ${h}h` : 'Expire <1h';
   }
 
-  async function upload(file: File) {
-    if (!$isOnline) {
-      pushToast('Upload impossible hors ligne — reconnectez-vous puis réessayez', 'info', 5000);
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      pushToast('Fichier trop lourd (10 Mo max)', 'info', 4000);
-      return;
-    }
+  async function upload(file: File, pendingId: string) {
     const fd = new FormData();
     fd.append('file', file);
     try {
@@ -38,30 +50,84 @@
         method: 'POST', body: fd, credentials: 'include'
       });
       if (!res.ok) {
-        pushToast(`Upload refusé (${res.status})`, 'info', 4000);
+        const body = await res.json().catch(() => ({}));
+        const msg = ERROR_MESSAGES[body?.error] ?? `Upload refusé (${res.status})`;
+        pending = pending.map(p => p.id === pendingId ? { ...p, error: msg } : p);
+        pushToast(`${file.name} — ${msg}`, 'info', 4500);
+        setTimeout(() => { pending = pending.filter(p => p.id !== pendingId); }, 4000);
         return;
       }
-      pushToast(`${file.name} uploadé`, 'success');
-      // server will broadcast 'files:updated' via socket
+      // server broadcast 'files:updated' via socket remplace l'entrée pending
+      pending = pending.filter(p => p.id !== pendingId);
     } catch {
-      pushToast('Erreur réseau pendant l\'upload', 'info', 4000);
+      const msg = 'Erreur réseau pendant l\'upload';
+      pending = pending.map(p => p.id === pendingId ? { ...p, error: msg } : p);
+      pushToast(`${file.name} — ${msg}`, 'info', 4500);
+      setTimeout(() => { pending = pending.filter(p => p.id !== pendingId); }, 4000);
+    }
+  }
+
+  function uploadBatch(fileList: File[]) {
+    if (!$isOnline) {
+      pushToast('Upload impossible hors ligne — reconnectez-vous puis réessayez', 'info', 5000);
+      return;
+    }
+    if (fileList.length === 0) return;
+
+    // Vérif proactive du lot AVANT tout envoi — évite un échec partiel
+    // silencieux au milieu d'un dossier (certains fichiers passent, d'autres
+    // non, sans qu'on comprenne pourquoi). Reflète le cap serveur
+    // MAX_ROOM_BYTES (50 Mo cumulés/room), vérifié ici en amont.
+    if (fileList.length > 1) {
+      const totalBytes = fileList.reduce((s, f) => s + f.size, 0);
+      if (totalBytes > MAX_BATCH_BYTES) {
+        pushToast(`Lot trop volumineux (${fmtSize(totalBytes)} > 50 Mo) — rien n'a été envoyé`, 'info', 6000);
+        return;
+      }
+    }
+
+    for (const file of fileList) {
+      if (file.size > MAX_FILE_BYTES) {
+        pushToast(`${file.name} — Fichier trop lourd (10 Mo max)`, 'info', 4000);
+        continue;
+      }
+      const id = crypto.randomUUID();
+      pending = [...pending, { id, name: file.name, size: file.size }];
+      upload(file, id);
     }
   }
 
   function onDrop(e: DragEvent) {
     e.preventDefault(); dragOver = false;
     if (!e.dataTransfer?.files) return;
-    for (const f of Array.from(e.dataTransfer.files)) upload(f);
+    uploadBatch(Array.from(e.dataTransfer.files));
   }
   function onPick(e: Event) {
     const t = e.target as HTMLInputElement;
     if (!t.files) return;
-    for (const f of Array.from(t.files)) upload(f);
+    uploadBatch(Array.from(t.files));
     t.value = '';
   }
+  // webkitdirectory n'est pas dans les types HTML standard (attribut
+  // non-standard mais largement supporté) — posé via action plutôt que
+  // prop pour éviter l'erreur de typage.
+  function webkitdir(node: HTMLInputElement) {
+    node.setAttribute('webkitdirectory', '');
+  }
+
   function onDelete(f: RoomFile) {
     if (!$isAdmin) return;
     getSocket().emit('file:delete', { fileKey: f.key });
+  }
+  async function onDownload(f: RoomFile) {
+    downloadingKey = f.key;
+    try {
+      await downloadFile(apiUrl(f.url), f.name);
+    } catch {
+      pushToast(`Téléchargement de ${f.name} échoué`, 'info', 4000);
+    } finally {
+      downloadingKey = null;
+    }
   }
 </script>
 
@@ -80,9 +146,9 @@
       {#if $files.length > 0}
         <span class="zone-count">{$files.length}</span>
       {/if}
-      <span class="zone-tag">10 Mo max · 24h</span>
+      <span class="zone-tag">10 Mo/fichier · 50 Mo/room · 24h</span>
     </div>
-    <p class="zone-desc">Déposez des fichiers pour les partager avec tous les participants. Ils expirent automatiquement après 24h.</p>
+    <p class="zone-desc">Déposez des fichiers (ou un dossier entier) pour les partager avec tous les participants. Ils expirent automatiquement après 24h.</p>
   </div>
 
   <!-- Dropzone -->
@@ -101,12 +167,31 @@
       <img src="/animations/file_share.gif" alt="" class="dz-gif" loading="lazy" />
     </span>
     <div class="dz-title">Glissez vos fichiers ici</div>
-    <div class="dz-sub mono">10 Mo max · Expiration 24h</div>
+    <div class="dz-sub mono">10 Mo/fichier · 50 Mo/dossier</div>
+    <button
+      class="btn btn-ghost folder-btn"
+      on:click|stopPropagation={() => folderInputEl.click()}
+    >
+      Importer un dossier
+    </button>
     <input bind:this={inputEl} type="file" multiple hidden on:change={onPick} />
+    <input
+      bind:this={folderInputEl} type="file" multiple hidden on:change={onPick}
+      use:webkitdir
+    />
   </div>
 
-  {#if $files.length > 0}
+  {#if pending.length > 0 || $files.length > 0}
     <div class="file-list">
+      {#each pending as p (p.id)}
+        <div class="file-card pending" class:has-error={!!p.error}>
+          <div class="file-ico"><span class="spinner-mini"></span></div>
+          <div class="file-meta">
+            <div class="file-name">{p.name}</div>
+            <div class="file-sub">{fmtSize(p.size)} · {p.error ?? 'Envoi en cours…'}</div>
+          </div>
+        </div>
+      {/each}
       {#each $files as f (f.key)}
         <div class="file-card">
           <div class="file-ico" style="background:{getFileIconStyle(f.name).bg}; color:{getFileIconStyle(f.name).fg};">
@@ -117,12 +202,19 @@
             <div class="file-sub">{fmtSize(f.size)} · {fmtExpiry(f.expiresAt)}</div>
           </div>
           <div class="file-actions">
-            <a class="icon-btn" href={apiUrl(f.url)} target="_blank" rel="noopener noreferrer" title="Télécharger" aria-label="Télécharger {f.name}">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                <path d="M8 2v8M5 7.5L8 10.5l3-3M3 13h10"
-                      stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </a>
+            <button
+              class="icon-btn" disabled={downloadingKey === f.key}
+              on:click={() => onDownload(f)} title="Télécharger" aria-label="Télécharger {f.name}"
+            >
+              {#if downloadingKey === f.key}
+                <span class="spinner-mini"></span>
+              {:else}
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 2v8M5 7.5L8 10.5l3-3M3 13h10"
+                        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              {/if}
+            </button>
             {#if $isAdmin}
               <button class="icon-btn danger" on:click={() => onDelete(f)} title="Supprimer" aria-label="Supprimer {f.name}">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -192,6 +284,7 @@
   :global(body.theme-dark) .dz-gif { mix-blend-mode: normal; }
   .dz-title { font-family: var(--font-head); font-weight: 600; font-size: 17px; color: var(--navy); }
   .dz-sub { font-size: 13px; color: var(--navy-50); }
+  .folder-btn { margin-top: 6px; font-size: 12.5px; padding: 8px 16px; min-height: 0; }
 
   .file-list { display: flex; flex-direction: column; gap: 10px; }
   .file-card {
@@ -199,13 +292,21 @@
     background: var(--surface); border-radius: var(--r-md);
     box-shadow: 0 2px 12px rgba(0,0,0,0.05);
   }
+  .file-card.pending { opacity: 0.75; }
+  .file-card.has-error { opacity: 1; box-shadow: 0 0 0 1px rgba(244,168,168,0.5); }
   .file-ico {
     /* background/color posés inline par fichier — voir lib/utils/fileIcon.ts */
     width: 40px; height: 40px; border-radius: var(--r-sm);
     display: flex; align-items: center; justify-content: center;
     font-family: var(--font-mono); font-size: 11px; font-weight: 500;
-    flex-shrink: 0;
+    flex-shrink: 0; background: var(--navy-06);
   }
+  .spinner-mini {
+    width: 16px; height: 16px; border-radius: 50%;
+    border: 2px solid var(--navy-12); border-top-color: var(--navy-50);
+    animation: spin .7s linear infinite; display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .file-meta { flex: 1; min-width: 0; }
   .file-name { font-size: 14px; font-weight: 600; color: var(--navy); }
   .file-sub { font-family: var(--font-mono); font-size: 11.5px; color: var(--navy-50); margin-top: 3px; }
@@ -218,5 +319,6 @@
     transition: background .15s, color .15s;
   }
   .icon-btn:hover { background: var(--navy-12); color: var(--navy); }
+  .icon-btn:disabled { cursor: default; opacity: 0.7; }
   .icon-btn.danger:hover { background: rgba(244,168,168,0.25); color: #B05656; }
 </style>
