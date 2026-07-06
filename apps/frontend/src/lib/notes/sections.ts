@@ -107,6 +107,11 @@ export const sectionsField = StateField.define<Section[]>({
  *
  * Ligne marqueur : on attache une classe + data-attrs et le CSS render
  * le chip via ::before (font-size: 0 cache les chars PUA du marqueur).
+ *
+ * Lignes de contenu : liseré coloré persistant (couleur de l'auteur) — sans
+ * ça, l'attribution "qui a écrit quoi" ne reposait QUE sur la présence en
+ * direct d'un curseur distant sur la zone (cf. plan attribution) : elle
+ * disparaissait dès qu'un participant bougeait son curseur ou se déconnectait.
  */
 export function sectionDecorations(myClientId: number, resolveAuthor: AuthorResolver) {
   return ViewPlugin.fromClass(class {
@@ -119,13 +124,11 @@ export function sectionDecorations(myClientId: number, resolveAuthor: AuthorReso
     }
     build(view: EditorView): DecorationSet {
       const sections = view.state.field(sectionsField, false) ?? [];
+      const doc = view.state.doc;
       const b = new RangeSetBuilder<Decoration>();
       for (const s of sections) {
         const info = resolveAuthor(s.authorId);
         const isMe = s.authorId === myClientId;
-        // Seulement le chip header sur la ligne marqueur — pas de styling
-        // sur les lignes de contenu. Approche minimale : seul le curseur
-        // distant identifie qui écrit où.
         b.add(s.markFrom, s.markFrom, Decoration.line({
           attributes: {
             class: 'cm-marker-line ' + (isMe ? 'cm-marker-mine' : 'cm-marker-other'),
@@ -134,6 +137,21 @@ export function sectionDecorations(myClientId: number, resolveAuthor: AuthorReso
             'data-author-tag':  isMe ? 'toi' : 'verrouillé',
           },
         }));
+
+        if (s.contentFrom < s.contentTo) {
+          let lineNo = doc.lineAt(s.contentFrom).number;
+          while (lineNo <= doc.lines) {
+            const line = doc.line(lineNo);
+            if (line.from >= s.contentTo) break;
+            b.add(line.from, line.from, Decoration.line({
+              attributes: {
+                class: 'cm-owned-line ' + (isMe ? 'cm-owned-mine' : 'cm-owned-other'),
+                style: `--author-color: ${info.color};`,
+              },
+            }));
+            lineNo++;
+          }
+        }
       }
       return b.finish();
     }

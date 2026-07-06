@@ -6,7 +6,7 @@
 
   import { EditorState } from '@codemirror/state';
   import {
-    EditorView, keymap, highlightActiveLine,
+    EditorView, keymap, highlightActiveLine, drawSelection,
     placeholder as cmPlaceholder, ViewPlugin,
   } from '@codemirror/view';
   import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
@@ -105,6 +105,10 @@
         cmPlaceholder('Hiii my N*gga !'),
         notebookContentClass,
         EditorView.lineWrapping,
+        // Sans ça, .cm-cursor n'est jamais rendu — le curseur local utilise
+        // le caret natif du navigateur, ininfluençable par --cm-cursor-color.
+        // C'est la vraie cause du "je ne vois pas mon curseur coloré".
+        drawSelection(),
 
         // Section system
         sectionsField,
@@ -122,7 +126,11 @@
           '.cm-scroller': { fontFamily: 'var(--font-body)', lineHeight: '1.7', padding: '4px 0 16px' },
           '.cm-content':  { padding: '8px 16px', color: 'var(--navy)', caretColor: 'var(--navy)' },
           '.cm-activeLine':       { background: 'transparent' },
-          '.cm-cursor':           { borderLeftColor: 'var(--cm-cursor-color, var(--navy))', borderLeftWidth: '2px' },
+          // Épaissi (2px→3px) : le curseur natif du navigateur reste plus
+          // discret qu'un curseur distant (barre pleine + badge pseudo).
+          // On rapproche le poids visuel pour que "le mien est coloré aussi"
+          // devienne évident au premier coup d'œil.
+          '.cm-cursor':           { borderLeftColor: 'var(--cm-cursor-color, var(--navy))', borderLeftWidth: '3px' },
           '.cm-selectionBackground, ::selection': { background: 'var(--chartreuse) !important' },
         }, { dark: false }),
       ],
@@ -214,6 +222,21 @@
   :global(.cm-host .cm-editor)         { height: 100%; }
   :global(.cm-host .cm-editor.cm-focused) { outline: none; }
   :global(.cm-host .cm-editor.cm-notebook-has-content .cm-placeholder) { display: none !important; }
+
+  /* ── Attribution persistante par section — liseré coloré sur les lignes
+     de contenu (couleur de l'auteur), visible même sans curseur en direct
+     dessus. Mes lignes en pleine opacité, celles des autres légèrement
+     atténuées pour que mon propre texte ressorte naturellement. ── */
+  :global(.cm-owned-line) {
+    border-left: 3px solid var(--author-color);
+    padding-left: 8px;
+    margin-left: -8px;
+  }
+  /* Atténue uniquement la couleur du bord (pas opacity sur toute la ligne,
+     qui assombrirait aussi le texte des autres et nuirait à la lisibilité). */
+  :global(.cm-owned-other) {
+    border-left-color: color-mix(in srgb, var(--author-color) 55%, transparent);
+  }
 
   /* ── Marker line — invisible, juste les chars PUA cachés.
      Pas de chip ("pseudo · toi/verrouillé") : seul le curseur Y.js inline
