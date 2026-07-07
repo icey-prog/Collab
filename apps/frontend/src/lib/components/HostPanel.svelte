@@ -14,13 +14,11 @@
   let retryCooldown = false;
   const RETRY_COOLDOWN_MS = 1500;
 
+  // Lien de partage = URL du FRONTEND (où on ouvre la room dans un navigateur),
+  // jamais VITE_API_URL (le backend) — voir lib/utils/lan.ts.
   function getPublicBase(): string {
     if (typeof window === 'undefined') return '';
-    return (
-      import.meta.env.VITE_PUBLIC_URL ||
-      import.meta.env.VITE_API_URL ||
-      window.location.origin
-    );
+    return import.meta.env.VITE_PUBLIC_URL || window.location.origin;
   }
 
   $: roomUrl = roomId ? `${getPublicBase()}/room/${roomId}` : '';
