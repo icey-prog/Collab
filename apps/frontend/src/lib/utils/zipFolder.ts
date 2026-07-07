@@ -16,7 +16,11 @@ export interface FileWithPath {
   path: string;
 }
 
-export async function zipFiles(entries: FileWithPath[], zipName: string): Promise<File> {
+export async function zipFiles(
+  entries: FileWithPath[],
+  zipName: string,
+  onProgress?: (processedBytes: number, totalBytes: number) => void,
+): Promise<File> {
   const chunks: Uint8Array[] = [];
   let resolveDone!: () => void;
   let rejectDone!: (e: Error) => void;
@@ -28,6 +32,9 @@ export async function zipFiles(entries: FileWithPath[], zipName: string): Promis
     if (final) resolveDone();
   });
 
+  const totalBytes = entries.reduce((s, e) => s + e.file.size, 0);
+  let processedBytes = 0;
+
   for (const { file, path } of entries) {
     const zipEntry = new ZipPassThrough(path);
     zip.add(zipEntry);
@@ -36,6 +43,8 @@ export async function zipFiles(entries: FileWithPath[], zipName: string): Promis
       const { done: eof, value } = await reader.read();
       if (eof) { zipEntry.push(new Uint8Array(0), true); break; }
       zipEntry.push(value);
+      processedBytes += value.byteLength;
+      onProgress?.(processedBytes, totalBytes);
     }
   }
   zip.end();

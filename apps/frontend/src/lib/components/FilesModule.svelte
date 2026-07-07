@@ -3,7 +3,7 @@
   import { isAdmin, pushToast } from '$lib/stores/room';
   import { getSocket } from '$lib/socket';
   import { isOnline } from '$lib/stores/network';
-  import { apiFetch, apiUrl, downloadFile } from '$lib/api/http';
+  import { apiUrl, downloadFile } from '$lib/api/http';
   import { getFileIconLabel, getFileIconStyle } from '$lib/utils/fileIcon';
   import { zipFiles, type FileWithPath } from '$lib/utils/zipFolder';
 
@@ -26,10 +26,21 @@
   let downloadingKey: string | null = null;
 
   // Entrées locales affichées immédiatement à la sélection, avant même que
-  // le serveur ait répondu — sinon rien ne bouge à l'écran pendant tout
-  // le round-trip réseau (upload silencieux, semble figé).
-  interface PendingUpload { id: string; name: string; size: number; error?: string }
+  // le serveur ait répondu — avec une progression réelle (%) : sans ça,
+  // gros fichier ou dossier = plusieurs secondes/minutes de "Envoi en
+  // cours…" figé, l'utilisateur ne sait pas si ça avance ou si c'est bloqué.
+  interface PendingUpload {
+    id: string; name: string; size: number; progress: number;
+    phase: 'zipping' | 'uploading'; error?: string;
+  }
   let pending: PendingUpload[] = [];
+
+  function updatePending(id: string, patch: Partial<PendingUpload>) {
+    pending = pending.map(p => (p.id === id ? { ...p, ...patch } : p));
+  }
+  function dropPendingAfterDelay(id: string, ms = 4000) {
+    setTimeout(() => { pending = pending.filter(p => p.id !== id); }, ms);
+  }
 
   function fmtSize(b: number) {
     if (b < 1024) return `${b} o`;
@@ -44,58 +55,85 @@
     return h > 0 ? `Expire dans ${h}h` : 'Expire <1h';
   }
 
-  async function upload(file: File, pendingId: string) {
-    const fd = new FormData();
-    fd.append('file', file);
-    try {
-      const res = await apiFetch(`/room/${roomId}/upload`, {
-        method: 'POST', body: fd, credentials: 'include'
-      });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        const msg = ERROR_MESSAGES[body?.error] ?? `Upload refusé (${res.status})`;
-        pending = pending.map(p => p.id === pendingId ? { ...p, error: msg } : p);
+  // XHR (pas fetch) : c'est le seul moyen fiable inter-navigateurs d'obtenir
+  // une progression d'upload en temps réel via xhr.upload.onprogress —
+  // fetch() ne l'expose pas.
+  function upload(file: File, pendingId: string): Promise<void> {
+    return new Promise((resolve) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', apiUrl(`/room/${roomId}/upload`));
+      xhr.withCredentials = true;
+
+      xhr.upload.onprogress = (e) => {
+        if (!e.lengthComputable) return;
+        updatePending(pendingId, { progress: Math.round((e.loaded / e.total) * 100) });
+      };
+
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          // server broadcast 'files:updated' via socket remplace l'entrée pending
+          pending = pending.filter(p => p.id !== pendingId);
+        } else {
+          let serverError: string | undefined;
+          try { serverError = JSON.parse(xhr.responseText)?.error; } catch { /* réponse non-JSON */ }
+          const msg = ERROR_MESSAGES[serverError ?? ''] ?? `Upload refusé (${xhr.status})`;
+          updatePending(pendingId, { error: msg });
+          pushToast(`${file.name} — ${msg}`, 'info', 4500);
+          dropPendingAfterDelay(pendingId);
+        }
+        resolve();
+      };
+      xhr.onerror = () => {
+        const msg = 'Erreur réseau pendant l\'upload';
+        updatePending(pendingId, { error: msg });
         pushToast(`${file.name} — ${msg}`, 'info', 4500);
-        setTimeout(() => { pending = pending.filter(p => p.id !== pendingId); }, 4000);
-        return;
-      }
-      // server broadcast 'files:updated' via socket remplace l'entrée pending
-      pending = pending.filter(p => p.id !== pendingId);
-    } catch {
-      const msg = 'Erreur réseau pendant l\'upload';
-      pending = pending.map(p => p.id === pendingId ? { ...p, error: msg } : p);
-      pushToast(`${file.name} — ${msg}`, 'info', 4500);
-      setTimeout(() => { pending = pending.filter(p => p.id !== pendingId); }, 4000);
-    }
+        dropPendingAfterDelay(pendingId);
+        resolve();
+      };
+
+      const fd = new FormData();
+      fd.append('file', file);
+      xhr.send(fd);
+    });
   }
 
-  function uploadBatch(fileList: File[]) {
+  interface UploadItem { file: File; pendingId?: string }
+
+  function uploadBatch(items: UploadItem[]) {
     if (!$isOnline) {
       pushToast('Upload impossible hors ligne — reconnectez-vous puis réessayez', 'info', 5000);
       return;
     }
-    if (fileList.length === 0) return;
+    if (items.length === 0) return;
 
     // Vérif proactive du lot AVANT tout envoi — évite un échec partiel
     // silencieux au milieu d'un dossier (certains fichiers passent, d'autres
     // non, sans qu'on comprenne pourquoi). Reflète le cap serveur
     // MAX_ROOM_BYTES (1 Go cumulés/room), vérifié ici en amont.
-    if (fileList.length > 1) {
-      const totalBytes = fileList.reduce((s, f) => s + f.size, 0);
+    if (items.length > 1) {
+      const totalBytes = items.reduce((s, i) => s + i.file.size, 0);
       if (totalBytes > MAX_BATCH_BYTES) {
         pushToast(`Lot trop volumineux (${fmtSize(totalBytes)} > 1 Go) — rien n'a été envoyé`, 'info', 6000);
         return;
       }
     }
 
-    for (const file of fileList) {
+    for (const { file, pendingId } of items) {
       if (file.size > MAX_FILE_BYTES) {
         pushToast(`${file.name} — Fichier trop lourd (500 Mo max)`, 'info', 4000);
+        if (pendingId) pending = pending.filter(p => p.id !== pendingId);
         continue;
       }
-      const id = crypto.randomUUID();
-      pending = [...pending, { id, name: file.name, size: file.size }];
-      upload(file, id);
+      if (pendingId) {
+        // Réutilise l'entrée déjà créée pendant la compression du dossier —
+        // évite une 2e carte qui apparaîtrait juste après la 1ère.
+        updatePending(pendingId, { phase: 'uploading', progress: 0, size: file.size });
+        upload(file, pendingId);
+      } else {
+        const id = crypto.randomUUID();
+        pending = [...pending, { id, name: file.name, size: file.size, progress: 0, phase: 'uploading' }];
+        upload(file, id);
+      }
     }
   }
 
@@ -135,16 +173,30 @@
    * et un dossier de N fichiers ne part plus en N requêtes parallèles — ce
    * qui percutait le rate-limit serveur (10 uploads/min) dès 11 fichiers :
    * rafale de 429, toasts en cascade, cartes bloquées (le "bug" observé
-   * sur le dossier de 300 Mo, invisible pour les autres participants). */
-  async function folderToZip(entries: FileWithPath[], folderName: string): Promise<File | null> {
+   * sur le dossier de 300 Mo, invisible pour les autres participants).
+   *
+   * Carte "Compression…" affichée dès le départ avec progression réelle
+   * (octets traités / total) — la compression d'un gros dossier peut
+   * prendre plusieurs secondes, et cette étape précède même l'upload :
+   * sans retour visuel ici, c'est le premier "moment de blanc" perçu.
+   * La même carte (même id) bascule ensuite en phase "uploading" au lieu
+   * d'en créer une seconde. */
+  async function zipFolderWithProgress(
+    entries: FileWithPath[], folderName: string,
+  ): Promise<UploadItem | null> {
     const totalBytes = entries.reduce((s, e) => s + e.file.size, 0);
-    if (totalBytes > 20 * 1024 * 1024) {
-      pushToast(`Préparation de ${folderName}.zip (${fmtSize(totalBytes)})…`, 'info', 3000);
-    }
+    const id = crypto.randomUUID();
+    const zipName = `${folderName}.zip`;
+    pending = [...pending, { id, name: zipName, size: totalBytes, progress: 0, phase: 'zipping' }];
+
     try {
-      return await zipFiles(entries, `${folderName}.zip`);
+      const file = await zipFiles(entries, zipName, (done, total) => {
+        updatePending(id, { progress: total > 0 ? Math.round((done / total) * 100) : 0 });
+      });
+      return { file, pendingId: id };
     } catch {
-      pushToast(`Impossible de préparer le dossier ${folderName}`, 'info', 4000);
+      updatePending(id, { error: `Impossible de préparer ${folderName}` });
+      dropPendingAfterDelay(id);
       return null;
     }
   }
@@ -158,16 +210,16 @@
         .map((it) => it.webkitGetAsEntry())
         .filter((en): en is FileSystemEntry => en !== null);
       if (entries.length > 0) {
-        const toUpload: File[] = [];
+        const toUpload: UploadItem[] = [];
         for (const entry of entries) {
           if (entry.isDirectory) {
             const collected = await readEntry(entry);
             if (collected.length === 0) continue;
-            const zip = await folderToZip(collected, entry.name);
+            const zip = await zipFolderWithProgress(collected, entry.name);
             if (zip) toUpload.push(zip);
           } else {
             const collected = await readEntry(entry);
-            toUpload.push(...collected.map((c) => c.file));
+            toUpload.push(...collected.map((c) => ({ file: c.file })));
           }
         }
         uploadBatch(toUpload);
@@ -176,13 +228,13 @@
     }
 
     if (!e.dataTransfer?.files) return;
-    uploadBatch(Array.from(e.dataTransfer.files));
+    uploadBatch(Array.from(e.dataTransfer.files).map((file) => ({ file })));
   }
 
   function onPick(e: Event) {
     const t = e.target as HTMLInputElement;
     if (!t.files) return;
-    uploadBatch(Array.from(t.files));
+    uploadBatch(Array.from(t.files).map((file) => ({ file })));
     t.value = '';
   }
 
@@ -204,9 +256,9 @@
       groups.set(top, group);
     }
 
-    const zips: File[] = [];
+    const zips: UploadItem[] = [];
     for (const [folderName, entries] of groups) {
-      const zip = await folderToZip(entries, folderName);
+      const zip = await zipFolderWithProgress(entries, folderName);
       if (zip) zips.push(zip);
     }
     uploadBatch(zips);
@@ -298,7 +350,21 @@
           <div class="file-ico"><span class="spinner-mini"></span></div>
           <div class="file-meta">
             <div class="file-name">{p.name}</div>
-            <div class="file-sub">{fmtSize(p.size)} · {p.error ?? 'Envoi en cours…'}</div>
+            <div class="file-sub">
+              {fmtSize(p.size)} ·
+              {#if p.error}
+                {p.error}
+              {:else if p.phase === 'zipping'}
+                Compression du dossier… {p.progress}%
+              {:else}
+                Envoi en cours… {p.progress}%
+              {/if}
+            </div>
+            {#if !p.error}
+              <div class="progress-track">
+                <div class="progress-fill" style="width: {p.progress}%"></div>
+              </div>
+            {/if}
           </div>
         </div>
       {/each}
@@ -420,6 +486,14 @@
   .file-meta { flex: 1; min-width: 0; }
   .file-name { font-size: 14px; font-weight: 600; color: var(--navy); }
   .file-sub { font-family: var(--font-mono); font-size: 11.5px; color: var(--navy-50); margin-top: 3px; }
+  .progress-track {
+    height: 4px; border-radius: 2px; background: var(--navy-08);
+    margin-top: 8px; overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%; background: var(--chartreuse);
+    transition: width .2s ease;
+  }
   .file-actions { display: flex; gap: 6px; }
   .icon-btn {
     width: 36px; height: 36px; border-radius: var(--r-sm);
