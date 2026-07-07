@@ -5,6 +5,7 @@
   import { isOnline } from '$lib/stores/network';
   import { apiFetch, apiUrl, downloadFile } from '$lib/api/http';
   import { getFileIconLabel, getFileIconStyle } from '$lib/utils/fileIcon';
+  import { zipFiles, type FileWithPath } from '$lib/utils/zipFolder';
 
   export let roomId: string;
 
@@ -98,15 +99,17 @@
     }
   }
 
-  // Lit récursivement un dossier glissé. dataTransfer.files traite un
-  // dossier déposé comme un faux "fichier" de 0 octet — tenter de l'uploader
-  // tel quel échoue au moment où le navigateur essaie d'en lire le contenu
-  // (c'est l'erreur observée). L'API FileSystemEntry donne accès au vrai
-  // contenu du dossier.
-  async function readEntry(entry: FileSystemEntry): Promise<File[]> {
+  // Lit récursivement un dossier glissé, en conservant le chemin relatif de
+  // chaque fichier (entry.fullPath). dataTransfer.files traite un dossier
+  // déposé comme un faux "fichier" de 0 octet — l'API FileSystemEntry donne
+  // accès au vrai contenu.
+  async function readEntry(entry: FileSystemEntry): Promise<FileWithPath[]> {
     if (entry.isFile) {
       return new Promise((resolve) => {
-        (entry as FileSystemFileEntry).file((file) => resolve([file]), () => resolve([]));
+        (entry as FileSystemFileEntry).file(
+          (file) => resolve([{ file, path: entry.fullPath.replace(/^\//, '') }]),
+          () => resolve([]),
+        );
       });
     }
     if (entry.isDirectory) {
@@ -127,6 +130,25 @@
     return [];
   }
 
+  /* Un dossier = UNE archive .zip = UN upload. Deux problèmes réglés d'un
+   * coup : les fichiers n'arrivent plus "en vrac" dissociés de leur dossier,
+   * et un dossier de N fichiers ne part plus en N requêtes parallèles — ce
+   * qui percutait le rate-limit serveur (10 uploads/min) dès 11 fichiers :
+   * rafale de 429, toasts en cascade, cartes bloquées (le "bug" observé
+   * sur le dossier de 300 Mo, invisible pour les autres participants). */
+  async function folderToZip(entries: FileWithPath[], folderName: string): Promise<File | null> {
+    const totalBytes = entries.reduce((s, e) => s + e.file.size, 0);
+    if (totalBytes > 20 * 1024 * 1024) {
+      pushToast(`Préparation de ${folderName}.zip (${fmtSize(totalBytes)})…`, 'info', 3000);
+    }
+    try {
+      return await zipFiles(entries, `${folderName}.zip`);
+    } catch {
+      pushToast(`Impossible de préparer le dossier ${folderName}`, 'info', 4000);
+      return null;
+    }
+  }
+
   async function onDrop(e: DragEvent) {
     e.preventDefault(); dragOver = false;
 
@@ -136,8 +158,19 @@
         .map((it) => it.webkitGetAsEntry())
         .filter((en): en is FileSystemEntry => en !== null);
       if (entries.length > 0) {
-        const fileLists = await Promise.all(entries.map(readEntry));
-        uploadBatch(fileLists.flat());
+        const toUpload: File[] = [];
+        for (const entry of entries) {
+          if (entry.isDirectory) {
+            const collected = await readEntry(entry);
+            if (collected.length === 0) continue;
+            const zip = await folderToZip(collected, entry.name);
+            if (zip) toUpload.push(zip);
+          } else {
+            const collected = await readEntry(entry);
+            toUpload.push(...collected.map((c) => c.file));
+          }
+        }
+        uploadBatch(toUpload);
         return;
       }
     }
@@ -145,11 +178,38 @@
     if (!e.dataTransfer?.files) return;
     uploadBatch(Array.from(e.dataTransfer.files));
   }
+
   function onPick(e: Event) {
     const t = e.target as HTMLInputElement;
     if (!t.files) return;
     uploadBatch(Array.from(t.files));
     t.value = '';
+  }
+
+  /* Sélection via "Importer un dossier" (webkitdirectory) : le navigateur
+   * aplatit tout en une liste de File avec webkitRelativePath — on regroupe
+   * par dossier racine et chaque groupe devient une archive. */
+  async function onPickFolder(e: Event) {
+    const t = e.target as HTMLInputElement;
+    if (!t.files || t.files.length === 0) return;
+    const all = Array.from(t.files);
+    t.value = '';
+
+    const groups = new Map<string, FileWithPath[]>();
+    for (const file of all) {
+      const rel = file.webkitRelativePath || file.name;
+      const top = rel.split('/')[0];
+      const group = groups.get(top) ?? [];
+      group.push({ file, path: rel });
+      groups.set(top, group);
+    }
+
+    const zips: File[] = [];
+    for (const [folderName, entries] of groups) {
+      const zip = await folderToZip(entries, folderName);
+      if (zip) zips.push(zip);
+    }
+    uploadBatch(zips);
   }
   // webkitdirectory n'est pas dans les types HTML standard (attribut
   // non-standard mais largement supporté) — posé via action plutôt que
@@ -225,7 +285,7 @@
          ne protège que SON click à lui, pas celui, distinct, de l'input. -->
     <input bind:this={inputEl} type="file" multiple hidden on:change={onPick} on:click|stopPropagation />
     <input
-      bind:this={folderInputEl} type="file" multiple hidden on:change={onPick}
+      bind:this={folderInputEl} type="file" multiple hidden on:change={onPickFolder}
       on:click|stopPropagation
       use:webkitdir
     />
