@@ -16,38 +16,64 @@ export interface FileWithPath {
   path: string;
 }
 
+/**
+ * Zippe en ReadableStream — consommable directement par un fetch() en
+ * streaming (body: stream, duplex: 'half'), sans attendre la fin de la
+ * compression avant d'envoyer le moindre octet. C'est ce qui permet à la
+ * compression et à l'upload réseau de se chevaucher au lieu de s'additionner
+ * (avant : zip complet PUIS upload complet = deux fois plus long).
+ */
+export function zipStream(
+  entries: FileWithPath[],
+  onProgress?: (processedBytes: number, totalBytes: number) => void,
+): ReadableStream<Uint8Array> {
+  const totalBytes = entries.reduce((s, e) => s + e.file.size, 0);
+  let processedBytes = 0;
+
+  return new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const zip = new Zip((err, chunk, final) => {
+        if (err) { controller.error(err); return; }
+        if (chunk) controller.enqueue(chunk);
+        if (final) controller.close();
+      });
+      try {
+        for (const { file, path } of entries) {
+          const zipEntry = new ZipPassThrough(path);
+          zip.add(zipEntry);
+          const reader = file.stream().getReader();
+          for (;;) {
+            const { done: eof, value } = await reader.read();
+            if (eof) { zipEntry.push(new Uint8Array(0), true); break; }
+            zipEntry.push(value);
+            processedBytes += value.byteLength;
+            onProgress?.(processedBytes, totalBytes);
+          }
+        }
+        zip.end();
+      } catch (e) {
+        controller.error(e);
+      }
+    },
+  });
+}
+
+/**
+ * Variante qui matérialise le zip en File — fallback pour les navigateurs
+ * sans support de fetch() en streaming (Safari notamment, cf. supportsStreamingUpload
+ * dans FilesModule.svelte). Zip et upload redeviennent séquentiels ici.
+ */
 export async function zipFiles(
   entries: FileWithPath[],
   zipName: string,
   onProgress?: (processedBytes: number, totalBytes: number) => void,
 ): Promise<File> {
+  const reader = zipStream(entries, onProgress).getReader();
   const chunks: Uint8Array[] = [];
-  let resolveDone!: () => void;
-  let rejectDone!: (e: Error) => void;
-  const done = new Promise<void>((res, rej) => { resolveDone = res; rejectDone = rej; });
-
-  const zip = new Zip((err, chunk, final) => {
-    if (err) { rejectDone(err); return; }
-    if (chunk) chunks.push(chunk);
-    if (final) resolveDone();
-  });
-
-  const totalBytes = entries.reduce((s, e) => s + e.file.size, 0);
-  let processedBytes = 0;
-
-  for (const { file, path } of entries) {
-    const zipEntry = new ZipPassThrough(path);
-    zip.add(zipEntry);
-    const reader = file.stream().getReader();
-    for (;;) {
-      const { done: eof, value } = await reader.read();
-      if (eof) { zipEntry.push(new Uint8Array(0), true); break; }
-      zipEntry.push(value);
-      processedBytes += value.byteLength;
-      onProgress?.(processedBytes, totalBytes);
-    }
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
   }
-  zip.end();
-  await done;
   return new File(chunks as BlobPart[], zipName, { type: 'application/zip' });
 }

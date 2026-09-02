@@ -20,7 +20,7 @@ import multipart from '@fastify/multipart';
 import rateLimit from '@fastify/rate-limit';
 import { Server as IOServer } from 'socket.io';
 
-import { rooms, startJanitor, MAX_FILE_BYTES, MAX_PARTICIPANTS } from './lib/state';
+import { rooms, startJanitor, MAX_FILE_BYTES, MAX_ROOM_BYTES, MAX_PARTICIPANTS } from './lib/state';
 import { corsOriginCheck, corsSummary } from './lib/cors';
 import { registerRoomRoutes } from './routes/rooms';
 import { registerFileRoutes } from './routes/files';
@@ -29,13 +29,23 @@ import { registerSocketHandlers } from './sockets/handlers';
 
 const PORT = Number(process.env.PORT ?? process.env.COLLAB_PORT ?? 3001);
 
-const app = Fastify({ logger: true, bodyLimit: 12 * 1024 * 1024 });
+// bodyLimit Fastify = plafond GLOBAL vérifié AVANT le parsing multipart —
+// doit couvrir le plus gros upload possible (MAX_ROOM_BYTES), sinon il
+// écrase silencieusement MAX_FILE_BYTES pour tout fichier au-delà.
+// +1Mo de marge pour les headers/boundaries multipart.
+const app = Fastify({ logger: true, bodyLimit: MAX_ROOM_BYTES + 1024 * 1024 });
 
 // Tolérance body vide sur POST sans payload (front fetch sans body)
 app.addContentTypeParser('application/json', { parseAs: 'string' }, (_req, body, done) => {
   const s = (body as string).trim();
   if (s === '') return done(null, {});
   try { done(null, JSON.parse(s)); } catch (err) { done(err as Error); }
+});
+// Zip de dossier streamé (routes/files.ts, upload sans multipart) — sans ce
+// parser Fastify répond 415 (content-type inconnu) avant même d'atteindre
+// la route. On ne bufferise rien : le stream passe tel quel en req.body.
+app.addContentTypeParser('application/zip', (_req, payload, done) => {
+  done(null, payload);
 });
 
 app.register(cors, { origin: corsOriginCheck, credentials: true });

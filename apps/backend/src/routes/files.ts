@@ -15,6 +15,7 @@ import { randomBytes } from 'node:crypto';
 import { createReadStream, createWriteStream, existsSync } from 'node:fs';
 import { stat, unlink } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
+import { Transform } from 'node:stream';
 import { join } from 'node:path';
 import {
   getRoom, publicFiles, UPLOAD_DIR, MAX_FILE_BYTES, FILE_TTL_MS,
@@ -72,22 +73,48 @@ export function registerFileRoutes(app: FastifyInstance, getIO: () => IOServer):
     }
     reserve(id, declared);
 
+    // Upload de zip de dossier streamé (fetch, body: ReadableStream côté
+    // client — voir uploadZipStream/FilesModule.svelte) : le zip et l'envoi
+    // réseau se chevauchent au lieu de s'additionner. Pas de multipart ici,
+    // le corps est le zip brut ; le nom vient d'un header custom.
+    const isRawStream = req.headers['content-type'] === 'application/zip';
+
     let diskPath: string | null = null;
     try {
-      const data = await req.file();
-      if (!data) return reply.code(400).send({ error: 'NO_FILE' });
+      let filename: string;
+      let sourceStream: NodeJS.ReadableStream;
+      let truncated = false;
 
-      const key = `${id}_${randomBytes(8).toString('hex')}_${data.filename.replace(/[^\w.\-]/g, '_')}`;
+      if (isRawStream) {
+        filename = decodeURIComponent(String(req.headers['x-file-name'] ?? 'dossier.zip'));
+        let written = 0;
+        // Pas de limite fileSize busboy hors multipart — on la reproduit
+        // nous-mêmes en comptant les octets qui traversent le stream.
+        sourceStream = (req.body as NodeJS.ReadableStream).pipe(new Transform({
+          transform(chunk, _enc, cb) {
+            written += chunk.length;
+            if (written > MAX_FILE_BYTES) { truncated = true; cb(); return; }
+            cb(null, chunk);
+          },
+        }));
+      } else {
+        const data = await req.file();
+        if (!data) return reply.code(400).send({ error: 'NO_FILE' });
+        filename = data.filename;
+        sourceStream = data.file;
+      }
+
+      const key = `${id}_${randomBytes(8).toString('hex')}_${filename.replace(/[^\w.\-]/g, '_')}`;
       diskPath = join(UPLOAD_DIR, key);
 
       // Streaming direct vers le disque — jamais le fichier entier en RAM
       // (l'ancien data.toBuffer() chargeait tout en mémoire : à 500 MB dans
       // un conteneur limité à 512 MB, OOM garanti au premier upload).
-      await pipeline(data.file, createWriteStream(diskPath));
+      await pipeline(sourceStream, createWriteStream(diskPath));
 
-      // La limite multipart (limits.fileSize) COUPE le flux au-delà de
-      // MAX_FILE_BYTES et pose ce flag — fichier tronqué = rejet.
-      if (data.file.truncated) {
+      // Multipart : busboy coupe le flux au-delà de MAX_FILE_BYTES et pose
+      // ce flag. Stream brut : notre Transform ci-dessus fait pareil.
+      if (truncated || (!isRawStream && (sourceStream as { truncated?: boolean }).truncated)) {
         await unlink(diskPath).catch(() => {});
         diskPath = null;
         return reply.code(413).send({ error: 'TOO_LARGE' });
@@ -103,7 +130,7 @@ export function registerFileRoutes(app: FastifyInstance, getIO: () => IOServer):
       }
 
       const meta: FileMeta = {
-        key, name: data.filename, size,
+        key, name: filename, size,
         url: `/room/${id}/file/${key}`,
         expiresAt: Date.now() + FILE_TTL_MS,
       };

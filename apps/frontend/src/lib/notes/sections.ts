@@ -126,30 +126,44 @@ export function sectionDecorations(myClientId: number, resolveAuthor: AuthorReso
       const sections = view.state.field(sectionsField, false) ?? [];
       const doc = view.state.doc;
       const b = new RangeSetBuilder<Decoration>();
-      for (const s of sections) {
-        const info = resolveAuthor(s.authorId);
-        const isMe = s.authorId === myClientId;
-        b.add(s.markFrom, s.markFrom, Decoration.line({
-          attributes: {
-            class: 'cm-marker-line ' + (isMe ? 'cm-marker-mine' : 'cm-marker-other'),
-            style: `--author-color: ${info.color};`,
-            'data-author-name': info.name,
-            'data-author-tag':  isMe ? 'toi' : 'verrouillé',
-          },
-        }));
-
-        if (s.contentFrom < s.contentTo) {
-          let lineNo = doc.lineAt(s.contentFrom).number;
-          while (lineNo <= doc.lines) {
-            const line = doc.line(lineNo);
-            if (line.from >= s.contentTo) break;
-            b.add(line.from, line.from, Decoration.line({
+      // Perf critique : ne décorer QUE les lignes visibles (+ marge), pas tout
+      // le doc. Ce plugin se rebuild à CHAQUE update (même une frappe qui ne
+      // touche qu'une ligne) — boucler sur doc.lines entier devient O(taille
+      // du doc) par frappe et fige l'éditeur après un gros paste. CodeMirror
+      // rappelle déjà build() automatiquement au scroll (visibleRanges change),
+      // donc restreindre ici ne perd aucune décoration à l'écran.
+      for (const { from: viewFrom, to: viewTo } of view.visibleRanges) {
+        for (const s of sections) {
+          if (s.contentTo <= viewFrom || s.markFrom >= viewTo) continue;
+          const info = resolveAuthor(s.authorId);
+          const isMe = s.authorId === myClientId;
+          if (s.markFrom >= viewFrom && s.markFrom <= viewTo) {
+            b.add(s.markFrom, s.markFrom, Decoration.line({
               attributes: {
-                class: 'cm-owned-line ' + (isMe ? 'cm-owned-mine' : 'cm-owned-other'),
+                class: 'cm-marker-line ' + (isMe ? 'cm-marker-mine' : 'cm-marker-other'),
                 style: `--author-color: ${info.color};`,
+                'data-author-name': info.name,
+                'data-author-tag':  isMe ? 'toi' : 'verrouillé',
               },
             }));
-            lineNo++;
+          }
+
+          if (s.contentFrom < s.contentTo) {
+            const from = Math.max(s.contentFrom, viewFrom);
+            const to   = Math.min(s.contentTo, viewTo);
+            if (from >= to) continue;
+            let lineNo = doc.lineAt(from).number;
+            while (lineNo <= doc.lines) {
+              const line = doc.line(lineNo);
+              if (line.from >= to) break;
+              b.add(line.from, line.from, Decoration.line({
+                attributes: {
+                  class: 'cm-owned-line ' + (isMe ? 'cm-owned-mine' : 'cm-owned-other'),
+                  style: `--author-color: ${info.color};`,
+                },
+              }));
+              lineNo++;
+            }
           }
         }
       }

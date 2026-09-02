@@ -5,7 +5,24 @@
   import { isOnline } from '$lib/stores/network';
   import { apiUrl, downloadFile } from '$lib/api/http';
   import { getFileIconLabel, getFileIconStyle } from '$lib/utils/fileIcon';
-  import { zipFiles, type FileWithPath } from '$lib/utils/zipFolder';
+  import { zipFiles, zipStream, type FileWithPath } from '$lib/utils/zipFolder';
+
+  // Détecte le support de fetch() en streaming (body: ReadableStream,
+  // duplex: 'half') — permet à zip et upload de se chevaucher au lieu de
+  // s'additionner. Absent sur Safari : fallback sur zipFiles() séquentiel.
+  const supportsStreamingUpload = (() => {
+    try {
+      let duplexAccessed = false;
+      new Request('https://x', {
+        method: 'POST',
+        body: new ReadableStream(),
+        get duplex() { duplexAccessed = true; return 'half'; },
+      } as RequestInit);
+      return duplexAccessed;
+    } catch {
+      return false;
+    }
+  })();
 
   export let roomId: string;
 
@@ -31,7 +48,7 @@
   // cours…" figé, l'utilisateur ne sait pas si ça avance ou si c'est bloqué.
   interface PendingUpload {
     id: string; name: string; size: number; progress: number;
-    phase: 'zipping' | 'uploading'; error?: string;
+    phase: 'zipping' | 'uploading' | 'streaming'; error?: string;
   }
   let pending: PendingUpload[] = [];
 
@@ -181,13 +198,70 @@
    * sans retour visuel ici, c'est le premier "moment de blanc" perçu.
    * La même carte (même id) bascule ensuite en phase "uploading" au lieu
    * d'en créer une seconde. */
+  // Pipe le zip directement dans le corps de la requête au fur et à mesure
+  // qu'il est produit — zip et upload réseau se chevauchent (voir zipStream).
+  // La progression suit les octets zippés : en mode store (pas de
+  // compression), ça reste une bonne approximation de ce qui part sur le
+  // réseau juste derrière, on n'a pas de progression d'upload distincte
+  // avec fetch() (contrairement à xhr.upload.onprogress).
+  async function uploadZipStream(entries: FileWithPath[], zipName: string, totalBytes: number, pendingId: string): Promise<void> {
+    const stream = zipStream(entries, (done) => {
+      updatePending(pendingId, { progress: totalBytes > 0 ? Math.round((done / totalBytes) * 100) : 0 });
+    });
+    // fetch natif (capturé dans app.html) — le window.fetch patché par
+    // SvelteKit échoue silencieusement sur les corps en streaming.
+    const nativeFetch = (window as unknown as { __nativeFetch?: typeof fetch }).__nativeFetch ?? fetch;
+    const res = await nativeFetch(apiUrl(`/room/${roomId}/upload`), {
+      method: 'POST',
+      body: stream,
+      duplex: 'half',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/zip', 'X-File-Name': encodeURIComponent(zipName) },
+    } as RequestInit & { duplex: string });
+
+    if (!res.ok) {
+      let serverError: string | undefined;
+      try { serverError = (await res.json())?.error; } catch { /* réponse non-JSON */ }
+      throw new Error(ERROR_MESSAGES[serverError ?? ''] ?? `Upload refusé (${res.status})`);
+    }
+    pending = pending.filter(p => p.id !== pendingId);
+  }
+
   async function zipFolderWithProgress(
     entries: FileWithPath[], folderName: string,
   ): Promise<UploadItem | null> {
     const totalBytes = entries.reduce((s, e) => s + e.file.size, 0);
     const id = crypto.randomUUID();
     const zipName = `${folderName}.zip`;
-    pending = [...pending, { id, name: zipName, size: totalBytes, progress: 0, phase: 'zipping' }];
+
+    if (totalBytes > MAX_FILE_BYTES) {
+      pushToast(`${zipName} — Dossier trop lourd (500 Mo max)`, 'info', 4000);
+      return null;
+    }
+
+    if (supportsStreamingUpload) {
+      pending = [...pending, { id, name: zipName, size: totalBytes, progress: 0, phase: 'streaming' }];
+      try {
+        await uploadZipStream(entries, zipName, totalBytes, id);
+        return null;
+      } catch (e) {
+        // Le serveur a répondu (quota plein, trop de fichiers…) — vraie
+        // erreur, inutile de retenter en séquentiel, le résultat sera pareil.
+        if (!(e instanceof TypeError)) {
+          updatePending(id, { error: e instanceof Error ? e.message : `Échec de l'envoi de ${folderName}` });
+          dropPendingAfterDelay(id);
+          return null;
+        }
+        // Échec transport avant même d'atteindre le serveur (TypeError
+        // "Failed to fetch") — le cas connu : Chrome exige HTTP/2 (ALPN)
+        // pour un body de fetch en streaming, indisponible sur certains
+        // réseaux/proxys HTTP/1.1 (dev local y compris). On retombe sur
+        // l'ancien chemin séquentiel zip-puis-upload, sur la même carte.
+        updatePending(id, { phase: 'zipping', progress: 0 });
+      }
+    } else {
+      pending = [...pending, { id, name: zipName, size: totalBytes, progress: 0, phase: 'zipping' }];
+    }
 
     try {
       const file = await zipFiles(entries, zipName, (done, total) => {
@@ -356,6 +430,8 @@
                 {p.error}
               {:else if p.phase === 'zipping'}
                 Compression du dossier… {p.progress}%
+              {:else if p.phase === 'streaming'}
+                Compression + envoi… {p.progress}%
               {:else}
                 Envoi en cours… {p.progress}%
               {/if}
