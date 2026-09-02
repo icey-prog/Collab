@@ -75,8 +75,8 @@
   // XHR (pas fetch) : c'est le seul moyen fiable inter-navigateurs d'obtenir
   // une progression d'upload en temps réel via xhr.upload.onprogress —
   // fetch() ne l'expose pas.
-  function upload(file: File, pendingId: string): Promise<void> {
-    return new Promise((resolve) => {
+  function xhrUploadOnce(file: File, pendingId: string): Promise<{ status: number; body: any }> {
+    return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', apiUrl(`/room/${roomId}/upload`));
       xhr.withCredentials = true;
@@ -87,31 +87,72 @@
       };
 
       xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          // server broadcast 'files:updated' via socket remplace l'entrée pending
-          pending = pending.filter(p => p.id !== pendingId);
-        } else {
-          let serverError: string | undefined;
-          try { serverError = JSON.parse(xhr.responseText)?.error; } catch { /* réponse non-JSON */ }
-          const msg = ERROR_MESSAGES[serverError ?? ''] ?? `Upload refusé (${xhr.status})`;
-          updatePending(pendingId, { error: msg });
-          pushToast(`${file.name} — ${msg}`, 'info', 4500);
-          dropPendingAfterDelay(pendingId);
-        }
-        resolve();
+        let body: any = null;
+        try { body = JSON.parse(xhr.responseText); } catch { /* réponse non-JSON */ }
+        resolve({ status: xhr.status, body });
       };
-      xhr.onerror = () => {
-        const msg = 'Erreur réseau pendant l\'upload';
-        updatePending(pendingId, { error: msg });
-        pushToast(`${file.name} — ${msg}`, 'info', 4500);
-        dropPendingAfterDelay(pendingId);
-        resolve();
-      };
+      // status 0 : coupure réseau en cours de transfert (pas une réponse serveur)
+      xhr.onerror = () => reject(new Error('NETWORK_ERROR'));
 
       const fd = new FormData();
       fd.append('file', file);
       xhr.send(fd);
     });
+  }
+
+  const MAX_UPLOAD_ATTEMPTS = 4;                     // 1 essai + 3 retries
+  const RETRY_DELAYS_MS = [1000, 2500, 6000];        // backoff — tolère les coupures courtes d'un réseau instable
+  function sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  // Gros fichier + connexion mobile/Wi-Fi instable = coupure en cours de
+  // transfert quasi garantie. Sans retry, tout échec réseau forçait à
+  // relancer l'upload en entier depuis zéro à la main.
+  async function upload(file: File, pendingId: string): Promise<void> {
+    for (let attempt = 1; attempt <= MAX_UPLOAD_ATTEMPTS; attempt++) {
+      try {
+        updatePending(pendingId, { progress: 0, error: undefined });
+        const { status, body } = await xhrUploadOnce(file, pendingId);
+
+        if (status >= 200 && status < 300) {
+          // server broadcast 'files:updated' via socket remplace l'entrée pending
+          pending = pending.filter(p => p.id !== pendingId);
+          return;
+        }
+
+        // Erreurs client (fichier trop lourd, quota, room fermée...) — pas la peine de réessayer.
+        if (status >= 400 && status < 500) {
+          const msg = ERROR_MESSAGES[body?.error ?? ''] ?? `Upload refusé (${status})`;
+          updatePending(pendingId, { error: msg });
+          pushToast(`${file.name} — ${msg}`, 'info', 4500);
+          dropPendingAfterDelay(pendingId);
+          return;
+        }
+
+        // 5xx / réponse inattendue → éligible au retry ci-dessous.
+        throw new Error(`HTTP_${status}`);
+      } catch {
+        const isLast = attempt >= MAX_UPLOAD_ATTEMPTS;
+        if (isLast) {
+          const msg = 'Échec après plusieurs tentatives — connexion instable';
+          updatePending(pendingId, { error: msg });
+          pushToast(`${file.name} — ${msg}`, 'info', 4500);
+          dropPendingAfterDelay(pendingId);
+          return;
+        }
+        updatePending(pendingId, { error: `Coupure réseau, nouvel essai ${attempt}/${MAX_UPLOAD_ATTEMPTS - 1}…` });
+        await sleep(RETRY_DELAYS_MS[attempt - 1] ?? 6000);
+        // Si l'app est repassée hors-ligne entre-temps, on arrête plutôt que de boucler pour rien.
+        if (!navigator.onLine) {
+          const msg = 'Hors ligne — reconnectez-vous puis relancez';
+          updatePending(pendingId, { error: msg });
+          pushToast(`${file.name} — upload interrompu (hors ligne)`, 'info', 4500);
+          dropPendingAfterDelay(pendingId);
+          return;
+        }
+      }
+    }
   }
 
   interface UploadItem { file: File; pendingId?: string }
