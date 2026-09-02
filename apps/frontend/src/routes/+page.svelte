@@ -22,6 +22,49 @@
   let copyOk = false;
   let errorMsg = '';
 
+  // Scan QR — même approche que JoinPanel.svelte (page /host desktop) :
+  // BarcodeDetector natif, pas de dépendance JS de décodage. Non supporté
+  // sur tous les navigateurs (Firefox notamment) — bouton masqué sinon.
+  let scanSupported = false;
+  if (typeof window !== 'undefined') {
+    scanSupported = 'BarcodeDetector' in window;
+  }
+
+  async function scanQR() {
+    if (!scanSupported) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      const video  = document.createElement('video');
+      video.srcObject = stream; await video.play();
+
+      /* @ts-expect-error BarcodeDetector est expérimental, pas encore dans lib.dom */
+      const detector = new BarcodeDetector({ formats: ['qr_code'] });
+      let stopped = false;
+      const stop = () => { stopped = true; stream.getTracks().forEach(t => t.stop()); };
+
+      const loop = async () => {
+        if (stopped) return;
+        try {
+          const results = await detector.detect(video);
+          if (results.length > 0) {
+            const raw = results[0].rawValue as string;
+            const m = raw.match(/\/room\/([A-Z0-9]{6})/i);
+            if (m) {
+              stop();
+              joinCode = m[1].toUpperCase();
+              handleJoin();
+              return;
+            }
+          }
+        } catch { /* on continue de scanner */ }
+        requestAnimationFrame(loop);
+      };
+      loop();
+    } catch {
+      joinError = 'Accès caméra refusé';
+    }
+  }
+
   async function handleCreate() {
     if (state === 'loading') return;
     // Haptic feedback mobile — Lot I (Touch Psy §6 confirmation tap)
@@ -133,6 +176,17 @@
             <button class="btn btn-ghost" on:click={handleJoin}>Rejoindre</button>
           </div>
           {#if joinError}<p class="join-err">{joinError}</p>{/if}
+
+          {#if scanSupported}
+            <button class="btn btn-ghost scan-btn" on:click={scanQR}>
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                <path d="M2 6V3.5A1.5 1.5 0 0 1 3.5 2H6M10 2h2.5A1.5 1.5 0 0 1 14 3.5V6M14 10v2.5a1.5 1.5 0 0 1-1.5 1.5H10M6 14H3.5A1.5 1.5 0 0 1 2 12.5V10"
+                      stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <rect x="5" y="5" width="6" height="6" rx="1" stroke="currentColor" stroke-width="1.4"/>
+              </svg>
+              Scanner un QR code
+            </button>
+          {/if}
 
         {:else}
           <div class="room-card card" role="status" aria-live="polite">
@@ -258,6 +312,11 @@
   }
   .join-err {
     color: #B05656; font-size: 12px; margin: 8px 0 0;
+  }
+
+  .scan-btn {
+    width: 100%; margin-top: 10px; padding: 12px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 9px;
   }
 
   /* Badges */

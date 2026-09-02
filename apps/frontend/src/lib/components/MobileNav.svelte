@@ -118,7 +118,7 @@
   .mobile-tabbar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 300;
     display: flex; justify-content: center;
-    padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+    padding: 8px 16px calc(20px + env(safe-area-inset-bottom));
     pointer-events: none;
   }
   .mobile-tabbar .pill { pointer-events: auto; }

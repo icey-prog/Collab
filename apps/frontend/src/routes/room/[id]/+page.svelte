@@ -560,12 +560,12 @@
        partager avec un grand vide avant la pill. Inutile sur mobile. */
     .status-sep { display: none; }
     .statusbar { display: none; }
-    /* MobileNav (pilule ~60px + 8px de marge haut/bas) est fixed en bas —
-       réserver l'espace pour que le dernier contenu ne soit pas masqué. */
-    .module { padding-bottom: calc(92px + env(safe-area-inset-bottom)); }
+    /* MobileNav (pilule ~60px + 8px marge haut + 20px marge basse) est fixed
+       en bas — réserver l'espace pour que le dernier contenu ne soit pas masqué. */
+    .module { padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
     .share-popover {
       position: fixed; left: 16px; right: 16px; top: auto;
-      bottom: calc(84px + env(safe-area-inset-bottom));
+      bottom: calc(96px + env(safe-area-inset-bottom));
       min-width: 0; width: auto;
     }
   }
